@@ -1,12 +1,68 @@
 const MAX = 3;
-const BGS = [
-  "backgrounds/grad-cream.jpg", "backgrounds/grad-sage.jpg", "backgrounds/grad-lavender.jpg",
-  "backgrounds/grad-sand.jpg", "backgrounds/grad-night.jpg", "backgrounds/grad-coral.jpg",
-  "backgrounds/grad-ocean.jpg", "backgrounds/grad-forest.jpg", "backgrounds/grad-rose.jpg",
-  "backgrounds/grad-ink.jpg", "backgrounds/soft-peach.jpg", "backgrounds/soft-mint.jpg",
-  "backgrounds/soft-lilac.jpg", "backgrounds/soft-butter.jpg", "backgrounds/photo-calm-1.jpg",
-  "backgrounds/photo-calm-2.jpg", "backgrounds/photo-calm-3.jpg", "backgrounds/photo-calm-4.jpg",
-  "backgrounds/photo-calm-5.jpg", "backgrounds/photo-calm-6.jpg"
+const THEMES = [
+  {
+    id: "calm",
+    name: "Спокій",
+    cover: "backgrounds/photo-calm-1.jpg",
+    images: [
+      "backgrounds/photo-calm-1.jpg", "backgrounds/photo-calm-2.jpg", "backgrounds/photo-calm-3.jpg",
+      "backgrounds/photo-calm-4.jpg", "backgrounds/photo-calm-5.jpg", "backgrounds/photo-calm-6.jpg"
+    ]
+  },
+  {
+    id: "nature",
+    name: "Природа",
+    cover: "backgrounds/theme-nature-1.jpg",
+    images: [
+      "backgrounds/theme-nature-1.jpg", "backgrounds/theme-nature-2.jpg", "backgrounds/theme-nature-3.jpg",
+      "backgrounds/theme-nature-4.jpg", "backgrounds/theme-nature-5.jpg", "backgrounds/theme-nature-6.jpg"
+    ]
+  },
+  {
+    id: "cozy",
+    name: "Затишок",
+    cover: "backgrounds/theme-cozy-1.jpg",
+    images: [
+      "backgrounds/theme-cozy-1.jpg", "backgrounds/theme-cozy-2.jpg", "backgrounds/theme-cozy-3.jpg",
+      "backgrounds/theme-cozy-4.jpg", "backgrounds/theme-cozy-5.jpg", "backgrounds/theme-cozy-6.jpg"
+    ]
+  },
+  {
+    id: "light",
+    name: "Світло",
+    cover: "backgrounds/theme-light-1.jpg",
+    images: [
+      "backgrounds/theme-light-1.jpg", "backgrounds/theme-light-2.jpg", "backgrounds/theme-light-3.jpg",
+      "backgrounds/theme-light-4.jpg", "backgrounds/theme-light-5.jpg", "backgrounds/theme-light-6.jpg"
+    ]
+  },
+  {
+    id: "warm",
+    name: "Теплі градієнти",
+    cover: "backgrounds/grad-cream.jpg",
+    images: [
+      "backgrounds/grad-cream.jpg", "backgrounds/grad-sage.jpg", "backgrounds/grad-lavender.jpg",
+      "backgrounds/grad-sand.jpg", "backgrounds/grad-coral.jpg", "backgrounds/grad-rose.jpg"
+    ]
+  },
+  {
+    id: "deep",
+    name: "Глибокі",
+    cover: "backgrounds/grad-night.jpg",
+    images: [
+      "backgrounds/grad-night.jpg", "backgrounds/grad-ocean.jpg", "backgrounds/grad-forest.jpg",
+      "backgrounds/grad-ink.jpg", "backgrounds/grad-sage.jpg", "backgrounds/grad-lavender.jpg"
+    ]
+  },
+  {
+    id: "pastel",
+    name: "Пастель",
+    cover: "backgrounds/soft-peach.jpg",
+    images: [
+      "backgrounds/soft-peach.jpg", "backgrounds/soft-mint.jpg", "backgrounds/soft-lilac.jpg",
+      "backgrounds/soft-butter.jpg", "backgrounds/grad-cream.jpg", "backgrounds/grad-sand.jpg"
+    ]
+  }
 ];
 
 const els = {
@@ -47,10 +103,50 @@ const els = {
 
 let slides = [];
 let idx = 0;
-let bgPath = BGS[0];
+let themeId = THEMES[0].id;
 const bgImages = {};
 let previewAlign = 'left';
 let previewValign = 'middle';
+
+function currentTheme() {
+  return THEMES.find(function (t) { return t.id === themeId; }) || THEMES[0];
+}
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = a[i];
+    a[i] = a[j];
+    a[j] = tmp;
+  }
+  return a;
+}
+
+function preloadBg(path) {
+  if (!path || bgImages[path]) return;
+  const img = new Image();
+  img.src = path;
+  bgImages[path] = img;
+}
+
+function preloadTheme(theme) {
+  theme.images.forEach(preloadBg);
+}
+
+function assignThemeToSlides(list) {
+  const theme = currentTheme();
+  preloadTheme(theme);
+  const pool = shuffle(theme.images);
+  list.forEach(function (s, i) {
+    s.bg = pool[i % pool.length];
+  });
+}
+
+function slideBg(slide) {
+  if (slide && slide.bg) return slide.bg;
+  return currentTheme().cover;
+}
 
 function todayKey() {
   return "sf-" + new Date().toISOString().slice(0, 10);
@@ -124,7 +220,9 @@ function saveCurrentEdits() {
 }
 
 function applyLook() {
-  els.slide.style.backgroundImage = 'url("' + bgPath + '")';
+  const path = hasSlides() ? slideBg(current()) : currentTheme().cover;
+  preloadBg(path);
+  els.slide.style.backgroundImage = 'url("' + path + '")';
   els.slide.classList.toggle("overlay-dark", els.overlay.value === "dark");
   els.slide.classList.remove("font-serif", "font-sans", "font-display", "size-s", "size-m", "size-l");
   els.slide.classList.add("font-" + els.font.value, "size-" + els.size.value);
@@ -190,23 +288,35 @@ function setValign(valign) {
 
 function renderBgGrid() {
   els.bgGrid.innerHTML = "";
-  BGS.forEach(function (path) {
+  THEMES.forEach(function (theme) {
+    preloadTheme(theme);
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "bg-opt" + (path === bgPath ? " active" : "");
-    btn.style.backgroundImage = 'url("' + path + '")';
+    btn.className = "theme-opt" + (theme.id === themeId ? " active" : "");
+    btn.title = theme.name + " — різне фото на кожен слайд";
+    const cover = document.createElement("span");
+    cover.className = "theme-cover";
+    cover.style.backgroundImage = 'url("' + theme.cover + '")';
+    const label = document.createElement("span");
+    label.className = "theme-name";
+    label.textContent = theme.name;
+    const meta = document.createElement("span");
+    meta.className = "theme-meta";
+    meta.textContent = theme.images.length + " фото";
+    btn.appendChild(cover);
+    btn.appendChild(label);
+    btn.appendChild(meta);
     btn.addEventListener("click", function () {
-      bgPath = path;
+      themeId = theme.id;
+      if (hasSlides()) {
+        saveCurrentEdits();
+        assignThemeToSlides(slides);
+      }
       renderBgGrid();
       applyLook();
-      renderFilmstrip();
+      render();
     });
     els.bgGrid.appendChild(btn);
-    if (!bgImages[path]) {
-      const img = new Image();
-      img.src = path;
-      bgImages[path] = img;
-    }
   });
 }
 
@@ -231,7 +341,7 @@ function renderFilmstrip() {
     const t = document.createElement("button");
     t.type = "button";
     t.className = "thumb" + (i === idx ? " active" : "");
-    t.style.backgroundImage = 'url("' + bgPath + '")';
+    t.style.backgroundImage = 'url("' + slideBg(s) + '")';
     const lab = document.createElement("div");
     lab.className = "t-label";
     lab.textContent = i + 1 + ". " + s.title;
@@ -329,7 +439,7 @@ function slideToPng(slide) {
   canvas.height = H;
   const ctx = canvas.getContext("2d");
 
-  const img = bgImages[bgPath];
+  const img = bgImages[slideBg(slide)];
   if (img && img.complete && img.naturalWidth) {
     const scale = Math.max(W / img.naturalWidth, H / img.naturalHeight);
     const dw = img.naturalWidth * scale;
@@ -435,6 +545,7 @@ els.generate.addEventListener("click", function () {
     return;
   }
   slides = buildSlides(text, els.tone.value);
+  assignThemeToSlides(slides);
   idx = 0;
   refreshQuota();
   applyLook();
