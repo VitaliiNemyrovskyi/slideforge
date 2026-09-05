@@ -4,104 +4,125 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SlideForge</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=3" />
 </head>
 <body>
   <main class="wrap">
     <header class="header">
-      <h1>SlideForge</h1>
-      <p class="sub">Як у нормальних carousel-мейкерів: текст → слайди → правки → PNG.</p>
+      <div>
+        <h1>SlideForge</h1>
+        <p class="sub">Текст → слайди → правки → PNG</p>
+      </div>
     </header>
+
     <section class="panel">
       <label for="input">Тема або чернетка</label>
-      <textarea id="input" rows="5" placeholder="Наприклад: чому просто відпусти — погана порада при тривозі"></textarea>
-      <div class="row">
-        <div>
-          <label for="tone">Тон</label>
+      <textarea id="input" rows="5" placeholder="Наприклад: чому ми сваримось через дрібниці"></textarea>
+
+      <div class="controls">
+        <label class="field">Тон
           <select id="tone">
             <option value="warm">Теплий</option>
             <option value="direct">Прямий</option>
             <option value="expert">Експертний</option>
           </select>
-        </div>
-        <div>
-          <label for="overlay">Текст</label>
+        </label>
+        <label class="field">Колір тексту
           <select id="overlay">
-            <option value="light">Темний текст</option>
-            <option value="dark">Світлий текст</option>
+            <option value="light">Темний</option>
+            <option value="dark">Світлий</option>
           </select>
-        </div>
-        <div>
-          <label for="font">Шрифт</label>
+        </label>
+        <label class="field">Шрифт
           <select id="font">
             <option value="serif">Georgia</option>
-            <option value="sans">Manrope</option>
+            <option value="sans" selected>Manrope</option>
             <option value="display">Playfair</option>
           </select>
-        </div>
-        <div>
-          <label for="size">Розмір</label>
+        </label>
+        <label class="field">Розмір
           <select id="size">
             <option value="s">S</option>
             <option value="m" selected>M</option>
-            <option value="l">⬅</option>
+            <option value="l">L</option>
           </select>
-        </div>
+        </label>
       </div>
-      <label>Фон</label>
+
+      <div class="label-row">Фон</div>
       <div id="bgGrid" class="bg-grid"></div>
-      <div class="row actions">
+
+      <div class="actions">
         <button id="generate" type="button">Згенерувати</button>
         <span id="quota" class="muted"></span>
       </div>
       <p id="error" class="error" hidden></p>
     </section>
+
     <section class="preview-wrap">
       <div class="phone">
-        <div id="slide" class="slide">
+        <div id="slide" class="slide font-sans size-m">
           <div class="slide-inner">
             <div class="topbar">
               <span id="slideType" class="badge">hook</span>
-              <span id="slideNum" class="num">1 / 1</span>
+              <span id="slideNum" class="num">—</span>
             </div>
-            <h2 id="slideTitle" contenteditable="true" spellcheck="false">Натисни Згенерувати</h2>
-            <p id="slideBody" contenteditable="true" spellcheck="false">Потім правиш текст прямо на слайді — як у Canva.</p>
+            <div id="textBlock" class="text-block">
+              <h2 id="slideTitle" contenteditable="true" spellcheck="false">Натисни «Згенерувати»</h2>
+              <p id="slideBody" contenteditable="true" spellcheck="false">Потім правиш текст і вирівнювання на кожному слайді.</p>
+            </div>
             <div class="brand">SlideForge</div>
           </div>
         </div>
       </div>
-      
-      <div class="edit-bar">
-        <span class="edit-hint">Клікни текст на слайді · вирівнювання (горизонт + вертикаль):</span>
-        <div class="align-btns">
-          <button type="button" id="alignLeft" class="align-btn" data-align="left" title="Ліворуч">⬅</button>
-          <button type="button" id="alignCenter" class="align-btn" data-align="center" title="По центру">☰</button>
-          <button type="button" id="alignRight" class="align-btn" data-align="right" title="Праворуч">➡</button>
+
+      <div class="toolbar" id="toolbar">
+        <div class="tool-group">
+          <span class="tool-label">По горизонталі</span>
+          <div class="seg">
+            <button type="button" class="seg-btn" id="alignLeft" data-align="left" title="Ліворуч" aria-label="Ліворуч">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h14"/></svg>
+            </button>
+            <button type="button" class="seg-btn" id="alignCenter" data-align="center" title="По центру" aria-label="По центру">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M5 18h14"/></svg>
+            </button>
+            <button type="button" class="seg-btn" id="alignRight" data-align="right" title="Праворуч" aria-label="Праворуч">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M10 12h10M6 18h14"/></svg>
+            </button>
+          </div>
         </div>
-        <div class="align-btns">
-          <button type="button" id="valignTop" class="align-btn" data-valign="top" title="Зверху">⬆</button>
-          <button type="button" id="valignMiddle" class="align-btn" data-valign="middle" title="По центру">⬍</button>
-          <button type="button" id="valignBottom" class="align-btn" data-valign="bottom" title="Знизу">⬇</button>
+        <div class="tool-group">
+          <span class="tool-label">По вертикалі</span>
+          <div class="seg">
+            <button type="button" class="seg-btn" id="valignTop" data-valign="top" title="Зверху" aria-label="Зверху">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16M12 8v12M8 12l4-4 4 4"/></svg>
+            </button>
+            <button type="button" class="seg-btn" id="valignMiddle" data-valign="middle" title="По центру" aria-label="По середині">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16M12 6v12M8 9l4-4 4 4M8 15l4 4 4-4"/></svg>
+            </button>
+            <button type="button" class="seg-btn" id="valignBottom" data-valign="bottom" title="Знизу" aria-label="Знизу">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16M12 4v12M8 12l4 4 4-4"/></svg>
+            </button>
+          </div>
         </div>
       </div>
 
       <div class="dots" id="dots"></div>
       <div class="nav">
-        <button id="prev" type="button" disabled>←</button>
+        <button id="prev" type="button" disabled aria-label="Попередній">←</button>
         <span id="counter">0 / 0</span>
-        <button id="next" type="button" disabled>→</button>
+        <button id="next" type="button" disabled aria-label="Наступний">→</button>
       </div>
       <div id="filmstrip" class="filmstrip"></div>
-      <div class="row actions">
+      <div class="actions">
         <button id="download" type="button" disabled>Завантажити PNG</button>
-        <button id="downloadAll" type="button" disabled>Усі PNG</button>
+        <button id="downloadAll" type="button" class="ghost" disabled>Усі PNG</button>
       </div>
     </section>
   </main>
-  <script src="app.js"></script>
-
+  <script src="app.js?v=3"></script>
 </body>
 </html>
