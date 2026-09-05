@@ -1,7 +1,31 @@
 const MAX = 3;
+const BGS = [
+  "backgrounds/grad-cream.jpg",
+  "backgrounds/grad-sage.jpg",
+  "backgrounds/grad-lavender.jpg",
+  "backgrounds/grad-sand.jpg",
+  "backgrounds/grad-night.jpg",
+  "backgrounds/grad-coral.jpg",
+  "backgrounds/grad-ocean.jpg",
+  "backgrounds/grad-forest.jpg",
+  "backgrounds/grad-rose.jpg",
+  "backgrounds/grad-ink.jpg",
+  "backgrounds/soft-peach.jpg",
+  "backgrounds/soft-mint.jpg",
+  "backgrounds/soft-lilac.jpg",
+  "backgrounds/soft-butter.jpg",
+  "backgrounds/photo-calm-1.jpg",
+  "backgrounds/photo-calm-2.jpg",
+  "backgrounds/photo-calm-3.jpg",
+  "backgrounds/photo-calm-4.jpg",
+  "backgrounds/photo-calm-5.jpg",
+  "backgrounds/photo-calm-6.jpg"
+];
+
 const input = document.getElementById("input");
 const tone = document.getElementById("tone");
-const theme = document.getElementById("theme");
+const overlay = document.getElementById("overlay");
+const bgGrid = document.getElementById("bgGrid");
 const generateBtn = document.getElementById("generate");
 const quotaEl = document.getElementById("quota");
 const errorEl = document.getElementById("error");
@@ -17,6 +41,8 @@ const downloadAllBtn = document.getElementById("downloadAll");
 
 let slides = [];
 let idx = 0;
+let bgPath = BGS[0];
+const bgImages = {};
 
 function todayKey() {
   return "sf-" + new Date().toISOString().slice(0, 10);
@@ -77,6 +103,34 @@ function buildSlides(text, toneVal) {
   ];
 }
 
+function renderBgGrid() {
+  bgGrid.innerHTML = "";
+  BGS.forEach(function (path, i) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "bg-opt" + (path === bgPath ? " active" : "");
+    btn.style.backgroundImage = "url(" + path + ")";
+    btn.title = path.split("/").pop();
+    btn.addEventListener("click", function () {
+      bgPath = path;
+      renderBgGrid();
+      applyLook();
+    });
+    bgGrid.appendChild(btn);
+    if (!bgImages[path]) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = path;
+      bgImages[path] = img;
+    }
+  });
+}
+
+function applyLook() {
+  slideEl.style.backgroundImage = "url(" + bgPath + ")";
+  slideEl.classList.toggle("overlay-dark", overlay.value === "dark");
+}
+
 function render() {
   if (!slides.length) {
     counter.textContent = "0 / 0";
@@ -97,18 +151,8 @@ function render() {
   downloadAllBtn.disabled = false;
 }
 
-function applyTheme() {
-  slideEl.className = "slide theme-" + theme.value;
-}
-
-function themeColors(name) {
-  if (name === "dark") return { bg: "#17141f", fg: "#f5f0e8", badge: "rgba(255,255,255,0.12)" };
-  if (name === "accent") return { bg: "#c45c26", fg: "#ffffff", badge: "rgba(255,255,255,0.2)" };
-  return { bg: "#fff7ef", fg: "#1a1a1a", badge: "rgba(0,0,0,0.08)" };
-}
-
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-  const words = text.split(" ");
+  const words = String(text).split(" ");
   let line = "";
   let yy = y;
   for (let n = 0; n < words.length; n++) {
@@ -125,33 +169,6 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
   return yy;
 }
 
-function slideToPng(slide, themeName) {
-  const W = 1080;
-  const H = 1350;
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d");
-  const c = themeColors(themeName);
-  ctx.fillStyle = c.bg;
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = c.badge;
-  roundRect(ctx, 72, 72, 180, 48, 24);
-  ctx.fill();
-  ctx.fillStyle = c.fg;
-  ctx.font = "28px Georgia, serif";
-  ctx.fillText(String(slide.type).toUpperCase(), 92, 105);
-  ctx.font = "bold 72px Georgia, serif";
-  let y = wrapText(ctx, slide.title, 72, 220, W - 144, 84);
-  ctx.font = "44px Georgia, serif";
-  wrapText(ctx, slide.body, 72, y + 80, W - 144, 58);
-  ctx.globalAlpha = 0.55;
-  ctx.font = "28px Georgia, serif";
-  ctx.fillText("SlideForge", 72, H - 72);
-  ctx.globalAlpha = 1;
-  return canvas.toDataURL("image/png");
-}
-
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -162,7 +179,53 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-theme.addEventListener("change", applyTheme);
+function slideToPng(slide) {
+  const W = 1080;
+  const H = 1350;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  const img = bgImages[bgPath];
+  if (img && img.complete && img.naturalWidth) {
+    const scale = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+    const dw = img.naturalWidth * scale;
+    const dh = img.naturalHeight * scale;
+    ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  } else {
+    ctx.fillStyle = "#fff7ef";
+    ctx.fillRect(0, 0, W, H);
+  }
+  const dark = overlay.value === "dark";
+  const grd = ctx.createLinearGradient(0, 0, 0, H);
+  if (dark) {
+    grd.addColorStop(0, "rgba(0,0,0,0.35)");
+    grd.addColorStop(1, "rgba(0,0,0,0.55)");
+  } else {
+    grd.addColorStop(0, "rgba(255,255,255,0.35)");
+    grd.addColorStop(1, "rgba(255,255,255,0.55)");
+  }
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, W, H);
+  const fg = dark ? "#f5f0e8" : "#1a1a1a";
+  ctx.fillStyle = dark ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.55)";
+  roundRect(ctx, 72, 72, 200, 52, 26);
+  ctx.fill();
+  ctx.fillStyle = fg;
+  ctx.font = "28px Georgia, serif";
+  ctx.fillText(String(slide.type).toUpperCase(), 92, 108);
+  ctx.font = "bold 72px Georgia, serif";
+  let y = wrapText(ctx, slide.title, 72, 230, W - 144, 84);
+  ctx.font = "44px Georgia, serif";
+  wrapText(ctx, slide.body, 72, y + 80, W - 144, 58);
+  ctx.globalAlpha = 0.7;
+  ctx.font = "28px Georgia, serif";
+  ctx.fillText("SlideForge", 72, H - 72);
+  ctx.globalAlpha = 1;
+  return canvas.toDataURL("image/png");
+}
+
+overlay.addEventListener("change", applyLook);
 prevBtn.addEventListener("click", function () {
   if (idx > 0) {
     idx -= 1;
@@ -194,12 +257,12 @@ generateBtn.addEventListener("click", function () {
   idx = 0;
   bumpUse();
   refreshQuota();
-  applyTheme();
+  applyLook();
   render();
 });
 
 downloadBtn.addEventListener("click", function () {
-  const url = slideToPng(slides[idx], theme.value);
+  const url = slideToPng(slides[idx]);
   const a = document.createElement("a");
   a.href = url;
   a.download = "slide-" + (idx + 1) + ".png";
@@ -208,7 +271,7 @@ downloadBtn.addEventListener("click", function () {
 
 downloadAllBtn.addEventListener("click", function () {
   slides.forEach(function (s, i) {
-    const url = slideToPng(s, theme.value);
+    const url = slideToPng(s);
     const a = document.createElement("a");
     a.href = url;
     a.download = "slide-" + (i + 1) + ".png";
@@ -218,6 +281,7 @@ downloadAllBtn.addEventListener("click", function () {
   });
 });
 
+renderBgGrid();
 refreshQuota();
-applyTheme();
+applyLook();
 render();

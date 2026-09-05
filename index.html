@@ -25,14 +25,15 @@
           </select>
         </div>
         <div>
-          <label for="theme">Шаблон</label>
-          <select id="theme">
-            <option value="light">Світлий</option>
-            <option value="dark">Темний</option>
-            <option value="accent">Акцент</option>
+          <label for="overlay">Текст</label>
+          <select id="overlay">
+            <option value="light">Темний текст</option>
+            <option value="dark">Світлий текст</option>
           </select>
         </div>
       </div>
+      <label>Фон</label>
+      <div id="bgGrid" class="bg-grid"></div>
       <div class="row actions">
         <button id="generate" type="button">Згенерувати</button>
         <span id="quota" class="muted"></span>
@@ -41,7 +42,7 @@
     </section>
     <section class="preview-wrap">
       <div class="phone">
-        <div id="slide" class="slide theme-light">
+        <div id="slide" class="slide">
           <div class="slide-inner">
             <span id="slideType" class="badge">hook</span>
             <h2 id="slideTitle">Натисни Згенерувати</h2>
