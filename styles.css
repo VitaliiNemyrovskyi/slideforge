@@ -30,3 +30,10 @@ button#generate{background:var(--accent)}
 .brand{font-size:.75rem;opacity:.7}
 .nav{display:flex;justify-content:center;align-items:center;gap:16px;margin:12px 0}
 .nav button{background:#eee;color:#111;min-width:44px}
+
+.slide.font-serif,.slide.font-serif *{font-family:Georgia,"Times New Roman",serif}
+.slide.font-sans,.slide.font-sans *{font-family:Manrope,system-ui,sans-serif}
+.slide.font-display,.slide.font-display *{font-family:"Playfair Display",Georgia,serif}
+.slide.size-s h2{font-size:1.25rem}.slide.size-s p{font-size:.92rem}
+.slide.size-m h2{font-size:1.55rem}.slide.size-m p{font-size:1.05rem}
+.slide.size-l h2{font-size:1.85rem}.slide.size-l p{font-size:1.18rem}

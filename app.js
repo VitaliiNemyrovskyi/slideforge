@@ -25,6 +25,8 @@ const BGS = [
 const input = document.getElementById("input");
 const tone = document.getElementById("tone");
 const overlay = document.getElementById("overlay");
+const fontSel = document.getElementById("font");
+const sizeSel = document.getElementById("size");
 const bgGrid = document.getElementById("bgGrid");
 const generateBtn = document.getElementById("generate");
 const quotaEl = document.getElementById("quota");
@@ -129,6 +131,8 @@ function renderBgGrid() {
 function applyLook() {
   slideEl.style.backgroundImage = "url(" + bgPath + ")";
   slideEl.classList.toggle("overlay-dark", overlay.value === "dark");
+  slideEl.classList.remove("font-serif", "font-sans", "font-display", "size-s", "size-m", "size-l");
+  slideEl.classList.add("font-" + fontSel.value, "size-" + sizeSel.value);
 }
 
 function render() {
@@ -211,21 +215,30 @@ function slideToPng(slide) {
   ctx.fillStyle = dark ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.55)";
   roundRect(ctx, 72, 72, 200, 52, 26);
   ctx.fill();
+  const fontMap = { serif: "Georgia, serif", sans: "Manrope, system-ui, sans-serif", display: '"Playfair Display", Georgia, serif' };
+  const sizeMap = { s: [56, 36, 64], m: [72, 44, 84], l: [88, 52, 96] };
+  const fam = fontMap[fontSel.value] || fontMap.serif;
+  const sz = sizeMap[sizeSel.value] || sizeMap.m;
+  const titlePx = sz[0];
+  const bodyPx = sz[1];
+  const titleLh = sz[2];
   ctx.fillStyle = fg;
-  ctx.font = "28px Georgia, serif";
+  ctx.font = "28px " + fam;
   ctx.fillText(String(slide.type).toUpperCase(), 92, 108);
-  ctx.font = "bold 72px Georgia, serif";
-  let y = wrapText(ctx, slide.title, 72, 230, W - 144, 84);
-  ctx.font = "44px Georgia, serif";
-  wrapText(ctx, slide.body, 72, y + 80, W - 144, 58);
+  ctx.font = "bold " + titlePx + "px " + fam;
+  let y = wrapText(ctx, slide.title, 72, 230, W - 144, titleLh);
+  ctx.font = bodyPx + "px " + fam;
+  wrapText(ctx, slide.body, 72, y + 80, W - 144, Math.round(bodyPx * 1.3));
   ctx.globalAlpha = 0.7;
-  ctx.font = "28px Georgia, serif";
+  ctx.font = "28px " + fam;
   ctx.fillText("SlideForge", 72, H - 72);
   ctx.globalAlpha = 1;
   return canvas.toDataURL("image/png");
 }
 
 overlay.addEventListener("change", applyLook);
+fontSel.addEventListener("change", applyLook);
+sizeSel.addEventListener("change", applyLook);
 prevBtn.addEventListener("click", function () {
   if (idx > 0) {
     idx -= 1;
