@@ -46,7 +46,7 @@ label, .label-row, .tool-label, .field {
   color: var(--muted);
   margin: 0 0 8px;
 }
-textarea, select {
+textarea, select, input[type="text"] {
   width: 100%;
   padding: 12px 14px;
   border: 1px solid var(--line);

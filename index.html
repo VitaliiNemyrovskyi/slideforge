@@ -14,13 +14,13 @@
     <header class="header">
       <div>
         <h1>SlideForge</h1>
-        <p class="sub">Текст → слайди → правки → PNG</p>
+        <p class="sub">Воронка Тімочки: біль етапу → hook → зсув → крок → CTA в Direct</p>
       </div>
     </header>
 
     <section class="panel">
-      <label for="input">Тема або чернетка</label>
-      <textarea id="input" rows="5" placeholder="Наприклад: чому ми сваримось через дрібниці"></textarea>
+      <label for="input">Біль / питання клієнта на її етапі шляху</label>
+      <textarea id="input" rows="5" placeholder="Наприклад: чому ми сваримось через дрібниці / боюсь іти до психолога / втомилась бути сильною"></textarea>
 
       <div class="controls">
         <label class="field">Тон
@@ -29,6 +29,9 @@
             <option value="direct">Прямий</option>
             <option value="expert">Експертний</option>
           </select>
+        </label>
+        <label class="field">Слово в Direct
+          <input id="ctaWord" type="text" value="СІМʼЯ" maxlength="20" />
         </label>
         <label class="field">Колір тексту
           <select id="overlay">
@@ -123,6 +126,6 @@
       </div>
     </section>
   </main>
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

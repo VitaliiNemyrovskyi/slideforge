@@ -12,6 +12,7 @@ const BGS = [
 const els = {
   input: document.getElementById("input"),
   tone: document.getElementById("tone"),
+  ctaWord: document.getElementById("ctaWord"),
   overlay: document.getElementById("overlay"),
   font: document.getElementById("font"),
   size: document.getElementById("size"),
@@ -71,38 +72,39 @@ function hasSlides() {
 }
 
 function buildSlides(text, toneVal) {
+  // Timochko funnel anatomy: pain at journey step → hook → recognition → reframe → obstacle → micro-step → soft CTA (DM word)
   const topic = truncate(text.replace(/\s+/g, " "), 140) || "Твоя тема";
-  const soft = toneVal === "direct" ? false : toneVal === "expert" ? "expert" : "warm";
   const a = previewAlign;
   const v = previewValign;
+  const word = ((els.ctaWord && els.ctaWord.value) || "СПОКІЙ").trim().toUpperCase() || "СПОКІЙ";
+  const soft = toneVal === "direct" ? "direct" : toneVal === "expert" ? "expert" : "warm";
 
-  const isFight = /свар|дрібниц|конфлікт|партнер|стосунк|сімей|семья|ссори|крич/i.test(topic);
+  const hookTitle =
+    soft === "direct" ? "Стоп. Це не дрібниця." :
+    soft === "expert" ? "Патерн, який дорого коштує" :
+    "Якщо впізнаєш себе — дочитай";
 
-  if (isFight) {
-    const tip1 =
-      soft === false
-        ? "Перед відповіддю спитай себе: я хочу бути правим чи бути поруч?"
-        : soft === "expert"
-          ? "Дрібниця часто активує старий тригер: контроль, знецінення, самотність у парі."
-          : "Пауза на 10 секунд. Спочатку контакт, потім правота.";
-    return [
-      { type: "hook", title: "Це майже ніколи не про чашку", body: topic, align: a, valign: v },
-      { type: "myth", title: "Міф про «дрібниці»", body: "Сварка через брудну чашку рідко про посуд. Це сигнал: «мене не чують», «я одна тягну», «мене знову контролюють».", align: a, valign: v },
-      { type: "tip", title: "Що насправді болить", body: "Під криком часто ховається потреба в повазі, близькості або безпеці. Якщо говорити лише про факт — розмова йде по колу.", align: a, valign: v },
-      { type: "tip", title: "Один маленький крок", body: tip1, align: a, valign: v },
-      { type: "tip", title: "Фраза замість атаки", body: "Не «ти завжди…», а: «мені зараз важко, бо я відчуваю… Мені потрібно…»", align: a, valign: v },
-      { type: "cta", title: "Забери собі", body: "Збережи, якщо впізнав свою пару. Хочеш розібрати свій сценарій — напиши в Direct слово СІМʼЯ.", align: a, valign: v }
-    ];
-  }
+  const step =
+    soft === "direct"
+      ? "Перед відповіддю одне питання: я хочу бути правим чи бути поруч?"
+      : soft === "expert"
+        ? "Назви вголос потребу під реакцією: повага, близькість, безпека, відпочинок."
+        : "Пауза 10 секунд. Спочатку «я з тобою», потім тема конфлікту.";
 
-  const open = soft === false ? "Коротко по суті:" : soft === "expert" ? "З практики:" : "Мʼяко кажучи:";
+  const phrase =
+    soft === "direct"
+      ? "Замість «ти завжди…»: «Мені зараз важко. Я відчуваю… Мені потрібно…»"
+      : soft === "expert"
+        ? "Формула: факт → почуття → потреба → прохання. Без діагноза партнеру."
+        : "Спробуй: «Коли так відбувається, я відчуваю… Мені важливо…»";
+
   return [
-    { type: "hook", title: "Стоп. Це про тебе.", body: topic, align: a, valign: v },
-    { type: "myth", title: "Де застрягаємо", body: "Ми часто шукаємо «хто винен», замість питання: що насправді зараз потрібно кожному.", align: a, valign: v },
-    { type: "tip", title: open + " помітити патерн", body: "Коли тема знову спливає — це вже не випадок, а сценарій. Його можна змінити.", align: a, valign: v },
-    { type: "tip", title: "Один маленький крок", body: "Не треба вирішити все сьогодні. Досить однієї чесної фрази без звинувачення.", align: a, valign: v },
-    { type: "tip", title: "Мова, яка зближує", body: "«Я відчуваю… коли… Мені важливо…» — замість ярликів і діагноза партнеру.", align: a, valign: v },
-    { type: "cta", title: "Забери собі", body: "Збережи карусель. Якщо відгукнулось — напиши в Direct слово СПОКІЙ.", align: a, valign: v }
+    { type: "hook", title: hookTitle, body: topic, align: a, valign: v },
+    { type: "pain", title: "Де це чіпляє", body: "За " + topic.toLowerCase() + " часто стоїть не «поганий характер», а втома бути непоміченою / контрольованою / самотньою поруч.", align: a, valign: v },
+    { type: "shift", title: "Зсув погляду", body: "Контент-воронка працює так: спочатку впізнавання болю, потім сенс, і лише потім дія. Не мораль — дзеркало.", align: a, valign: v },
+    { type: "block", title: "Що блокує", body: "Ми йдемо в правоту, сарказм або мовчанку. Коло замикається: дрібниця → удар → дистанція → нова дрібниця.", align: a, valign: v },
+    { type: "step", title: "Один крок шляху", body: step + " " + phrase, align: a, valign: v },
+    { type: "cta", title: "Наступний крок воронки", body: "Збережи. Якщо відгукнулось — напиши в Direct слово " + word + " і забери короткий гайд / запис на розбір.", align: a, valign: v }
   ];
 }
 
