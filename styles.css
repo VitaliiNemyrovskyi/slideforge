@@ -60,3 +60,9 @@ button#generate{background:var(--accent)}
 .slide-inner.align-center .badge{align-self:center}
 .slide-inner.align-right .badge{align-self:flex-end}
 .slide-inner.align-left .badge{align-self:flex-start}
+
+.slide-inner{justify-content:flex-start}
+.slide-inner.valign-top{justify-content:flex-start}
+.slide-inner.valign-middle{justify-content:center}
+.slide-inner.valign-bottom{justify-content:flex-end}
+.slide-inner.valign-middle .brand,.slide-inner.valign-bottom .brand{margin-top:12px}

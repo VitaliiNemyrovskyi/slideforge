@@ -34,6 +34,9 @@ const alignLeft = document.getElementById("alignLeft");
 const alignCenter = document.getElementById("alignCenter");
 const alignRight = document.getElementById("alignRight");
 const slideInner = document.querySelector(".slide-inner");
+const valignTop = document.getElementById("valignTop");
+const valignMiddle = document.getElementById("valignMiddle");
+const valignBottom = document.getElementById("valignBottom");
 
 let slides = [];
 let idx = 0;
@@ -57,12 +60,12 @@ function buildSlides(text, toneVal) {
   const topic = truncate(text.replace(/\s+/g, " "), 120) || "Твоя тема";
   const tipOpen = toneVal === "direct" ? "Коротко:" : toneVal === "expert" ? "З практики:" : "Мʼяко кажучи:";
   return [
-    { type: "hook", title: "Стоп. Це важливо.", body: topic, align: "left" },
-    { type: "myth", title: "Міф, який шкодить", body: "Порада «просто відпусти» часто ігнорує нервову систему. Тривога — не лінь і не слабкість.", align: "left" },
-    { type: "tip", title: tipOpen + " тіло спочатку", body: "Ноги на підлогу. Видих довше за вдих. Назви 5 речей, які бачиш. Потім думки.", align: "left" },
-    { type: "tip", title: "Один маленький крок", body: "Не треба «стати спокійним». Досить зменшити інтенсивність на 10% і дати собі опору.", align: "left" },
-    { type: "tip", title: "Мова до себе", body: "Замість «знову я» спробуй: «зараз мені важко — і це можна витримати з підтримкою».", align: "left" },
-    { type: "cta", title: "Забери собі", body: "Збережи карусель. Якщо відгукнулось — напиши в Direct слово СПОКІЙ або запишися на сесію.", align: "left" }
+    { type: "hook", title: "Стоп. Це важливо.", body: topic, align: "left", valign: "top" },
+    { type: "myth", title: "Міф, який шкодить", body: "Порада «просто відпусти» часто ігнорує нервову систему. Тривога — не лінь і не слабкість.", align: "left", valign: "top" },
+    { type: "tip", title: tipOpen + " тіло спочатку", body: "Ноги на підлогу. Видих довше за вдих. Назви 5 речей, які бачиш. Потім думки.", align: "left", valign: "top" },
+    { type: "tip", title: "Один маленький крок", body: "Не треба «стати спокійним». Досить зменшити інтенсивність на 10% і дати собі опору.", align: "left", valign: "top" },
+    { type: "tip", title: "Мова до себе", body: "Замість «знову я» спробуй: «зараз мені важко — і це можна витримати з підтримкою».", align: "left", valign: "top" },
+    { type: "cta", title: "Забери собі", body: "Збережи карусель. Якщо відгукнулось — напиши в Direct слово СПОКІЙ або запишися на сесію.", align: "left", valign: "top" }
   ];
 }
 
@@ -100,6 +103,7 @@ function saveCurrentEdits() {
   slides[idx].title = slideTitle.innerText.trim();
   slides[idx].body = slideBody.innerText.trim();
   if (!slides[idx].align) slides[idx].align = "left";
+  if (!slides[idx].valign) slides[idx].valign = "top";
 }
 
 function setAlign(align) {
@@ -111,9 +115,10 @@ function setAlign(align) {
 
 function applyAlign() {
   if (!slideInner) return;
-  slideInner.classList.remove("align-left", "align-center", "align-right");
+  slideInner.classList.remove("align-left", "align-center", "align-right", "valign-top", "valign-middle", "valign-bottom");
   const a = (slides[idx] && slides[idx].align) || "left";
-  slideInner.classList.add("align-" + a);
+  const v = (slides[idx] && slides[idx].valign) || "top";
+  slideInner.classList.add("align-" + a, "valign-" + v);
 }
 
 function updateAlignButtons() {
@@ -122,6 +127,18 @@ function updateAlignButtons() {
     if (!b) return;
     b.classList.toggle("active", b.getAttribute("data-align") === a);
   });
+  const v = (slides[idx] && slides[idx].valign) || "top";
+  [valignTop, valignMiddle, valignBottom].forEach(function (b) {
+    if (!b) return;
+    b.classList.toggle("active", b.getAttribute("data-valign") === v);
+  });
+}
+
+function setValign(valign) {
+  if (!slides.length) return;
+  slides[idx].valign = valign;
+  applyAlign();
+  updateAlignButtons();
 }
 
 function renderDots() {
@@ -242,9 +259,33 @@ function slideToPng(slide) {
   ctx.fillText(num, W - 200, 108);
   ctx.font = "bold " + sz[0] + "px " + fam;
   ctx.textAlign = align === "center" ? "center" : align === "right" ? "right" : "left";
-  let y = wrapText(ctx, slide.title, tx, 230, W - 144, sz[2]);
+  const valign = slide.valign || "top";
+  const bodyLh = Math.round(sz[1] * 1.3);
+  // estimate block height roughly then place
+  function measureBlock(title, body) {
+    function linesOf(str, font) {
+      ctx.font = font;
+      const words = String(str).split(" ");
+      let line = "", lines = 1;
+      for (let n = 0; n < words.length; n++) {
+        const test = line + words[n] + " ";
+        if (ctx.measureText(test).width > W - 144 && n > 0) { lines++; line = words[n] + " "; }
+        else line = test;
+      }
+      return lines;
+    }
+    const tl = linesOf(title, "bold " + sz[0] + "px " + fam);
+    const bl = linesOf(body, sz[1] + "px " + fam);
+    return tl * sz[2] + 80 + bl * bodyLh;
+  }
+  const blockH = measureBlock(slide.title, slide.body);
+  let startY = 230;
+  if (valign === "middle") startY = Math.max(200, (H - blockH) / 2);
+  if (valign === "bottom") startY = Math.max(200, H - 140 - blockH);
+  ctx.font = "bold " + sz[0] + "px " + fam;
+  let y = wrapText(ctx, slide.title, tx, startY, W - 144, sz[2]);
   ctx.font = sz[1] + "px " + fam;
-  wrapText(ctx, slide.body, tx, y + 80, W - 144, Math.round(sz[1] * 1.3));
+  wrapText(ctx, slide.body, tx, y + 80, W - 144, bodyLh);
   ctx.textAlign = "left";
   ctx.globalAlpha = 0.7;
   ctx.font = "28px " + fam;
@@ -262,6 +303,9 @@ slideBody.addEventListener("blur", function () { saveCurrentEdits(); renderFilms
 alignLeft.addEventListener("click", function () { setAlign("left"); });
 alignCenter.addEventListener("click", function () { setAlign("center"); });
 alignRight.addEventListener("click", function () { setAlign("right"); });
+valignTop.addEventListener("click", function () { setValign("top"); });
+valignMiddle.addEventListener("click", function () { setValign("middle"); });
+valignBottom.addEventListener("click", function () { setValign("bottom"); });
 
 prevBtn.addEventListener("click", function () {
   if (idx > 0) { saveCurrentEdits(); idx -= 1; render(); }
