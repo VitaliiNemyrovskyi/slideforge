@@ -72,16 +72,38 @@ function hasSlides() {
 }
 
 function buildSlides(text, toneVal) {
-  const topic = truncate(text.replace(/\s+/g, " "), 120) || "Твоя тема";
-  const tipOpen = toneVal === "direct" ? "Коротко:" : toneVal === "expert" ? "З практики:" : "Мʼяко кажучи:";
-  const base = { align: previewAlign, valign: previewValign };
+  const topic = truncate(text.replace(/\s+/g, " "), 140) || "Твоя тема";
+  const soft = toneVal === "direct" ? false : toneVal === "expert" ? "expert" : "warm";
+  const a = previewAlign;
+  const v = previewValign;
+
+  const isFight = /свар|дрібниц|конфлікт|партнер|стосунк|сімей|семья|ссори|крич/i.test(topic);
+
+  if (isFight) {
+    const tip1 =
+      soft === false
+        ? "Перед відповіддю спитай себе: я хочу бути правим чи бути поруч?"
+        : soft === "expert"
+          ? "Дрібниця часто активує старий тригер: контроль, знецінення, самотність у парі."
+          : "Пауза на 10 секунд. Спочатку контакт, потім правота.";
+    return [
+      { type: "hook", title: "Це майже ніколи не про чашку", body: topic, align: a, valign: v },
+      { type: "myth", title: "Міф про «дрібниці»", body: "Сварка через брудну чашку рідко про посуд. Це сигнал: «мене не чують», «я одна тягну», «мене знову контролюють».", align: a, valign: v },
+      { type: "tip", title: "Що насправді болить", body: "Під криком часто ховається потреба в повазі, близькості або безпеці. Якщо говорити лише про факт — розмова йде по колу.", align: a, valign: v },
+      { type: "tip", title: "Один маленький крок", body: tip1, align: a, valign: v },
+      { type: "tip", title: "Фраза замість атаки", body: "Не «ти завжди…», а: «мені зараз важко, бо я відчуваю… Мені потрібно…»", align: a, valign: v },
+      { type: "cta", title: "Забери собі", body: "Збережи, якщо впізнав свою пару. Хочеш розібрати свій сценарій — напиши в Direct слово СІМʼЯ.", align: a, valign: v }
+    ];
+  }
+
+  const open = soft === false ? "Коротко по суті:" : soft === "expert" ? "З практики:" : "Мʼяко кажучи:";
   return [
-    Object.assign({ type: "hook", title: "Стоп. Це важливо.", body: topic }, base),
-    Object.assign({ type: "myth", title: "Міф, який шкодить", body: "Порада «просто відпусти» часто ігнорує нервову систему. Тривога — не лінь і не слабкість." }, base),
-    Object.assign({ type: "tip", title: tipOpen + " тіло спочатку", body: "Ноги на підлогу. Видих довше за вдих. Назви 5 речей, які бачиш. Потім думки." }, base),
-    Object.assign({ type: "tip", title: "Один маленький крок", body: "Не треба «стати спокійним». Досить зменшити інтенсивність на 10% і дати собі опору." }, base),
-    Object.assign({ type: "tip", title: "Мова до себе", body: "Замість «знову я» спробуй: «зараз мені важко — і це можна витримати з підтримкою»." }, base),
-    Object.assign({ type: "cta", title: "Забери собі", body: "Збережи карусель. Якщо відгукнулось — напиши в Direct слово СПОКІЙ." }, base)
+    { type: "hook", title: "Стоп. Це про тебе.", body: topic, align: a, valign: v },
+    { type: "myth", title: "Де застрягаємо", body: "Ми часто шукаємо «хто винен», замість питання: що насправді зараз потрібно кожному.", align: a, valign: v },
+    { type: "tip", title: open + " помітити патерн", body: "Коли тема знову спливає — це вже не випадок, а сценарій. Його можна змінити.", align: a, valign: v },
+    { type: "tip", title: "Один маленький крок", body: "Не треба вирішити все сьогодні. Досить однієї чесної фрази без звинувачення.", align: a, valign: v },
+    { type: "tip", title: "Мова, яка зближує", body: "«Я відчуваю… коли… Мені важливо…» — замість ярликів і діагноза партнеру.", align: a, valign: v },
+    { type: "cta", title: "Забери собі", body: "Збережи карусель. Якщо відгукнулось — напиши в Direct слово СПОКІЙ.", align: a, valign: v }
   ];
 }
 
