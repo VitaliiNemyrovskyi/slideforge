@@ -46,6 +46,8 @@ let slides = [];
 let idx = 0;
 let bgPath = BGS[0];
 const bgImages = {};
+let previewAlign = 'left';
+let previewValign = 'middle';
 
 function todayKey() {
   return "sf-" + new Date().toISOString().slice(0, 10);
@@ -72,7 +74,7 @@ function hasSlides() {
 function buildSlides(text, toneVal) {
   const topic = truncate(text.replace(/\s+/g, " "), 120) || "Твоя тема";
   const tipOpen = toneVal === "direct" ? "Коротко:" : toneVal === "expert" ? "З практики:" : "Мʼяко кажучи:";
-  const base = { align: "left", valign: "middle" };
+  const base = { align: previewAlign, valign: previewValign };
   return [
     Object.assign({ type: "hook", title: "Стоп. Це важливо.", body: topic }, base),
     Object.assign({ type: "myth", title: "Міф, який шкодить", body: "Порада «просто відпусти» часто ігнорує нервову систему. Тривога — не лінь і не слабкість." }, base),
@@ -104,48 +106,59 @@ function applyLook() {
 }
 
 function applyAlign() {
-  const s = hasSlides() ? current() : { align: "left", valign: "middle" };
-  const a = s.align || "left";
-  const v = s.valign || "middle";
+  const a = hasSlides() ? (current().align || previewAlign) : previewAlign;
+  const v = hasSlides() ? (current().valign || previewValign) : previewValign;
+  previewAlign = a;
+  previewValign = v;
+
   els.slideInner.classList.remove(
-    "align-left", "align-center", "align-right",
-    "valign-top", "valign-middle", "valign-bottom"
+    'align-left', 'align-center', 'align-right',
+    'valign-top', 'valign-middle', 'valign-bottom'
   );
-  els.slideInner.classList.add("align-" + a, "valign-" + v);
+  els.slideInner.classList.add('align-' + a, 'valign-' + v);
+
+  // Direct styles so it always wins over leftover CSS
+  els.textBlock.style.textAlign = a;
+  els.textBlock.style.width = '100%';
+  if (a === 'left') els.textBlock.style.alignItems = 'flex-start';
+  if (a === 'center') els.textBlock.style.alignItems = 'center';
+  if (a === 'right') els.textBlock.style.alignItems = 'flex-end';
+
+  if (v === 'top') els.textBlock.style.alignSelf = 'start';
+  if (v === 'middle') els.textBlock.style.alignSelf = 'center';
+  if (v === 'bottom') els.textBlock.style.alignSelf = 'end';
+
+  els.slideTitle.style.textAlign = a;
+  els.slideBody.style.textAlign = a;
 }
 
 function updateAlignButtons() {
-  const enabled = hasSlides();
-  const s = enabled ? current() : { align: "left", valign: "middle" };
-  const a = s.align || "left";
-  const v = s.valign || "middle";
-  [
-    els.alignLeft, els.alignCenter, els.alignRight,
-    els.valignTop, els.valignMiddle, els.valignBottom
-  ].forEach(function (btn) {
-    if (!btn) return;
-    btn.disabled = !enabled;
-  });
   [els.alignLeft, els.alignCenter, els.alignRight].forEach(function (btn) {
-    btn.classList.toggle("active", enabled && btn.dataset.align === a);
+    btn.disabled = false;
+    btn.classList.toggle('active', btn.dataset.align === previewAlign);
   });
   [els.valignTop, els.valignMiddle, els.valignBottom].forEach(function (btn) {
-    btn.classList.toggle("active", enabled && btn.dataset.valign === v);
+    btn.disabled = false;
+    btn.classList.toggle('active', btn.dataset.valign === previewValign);
   });
 }
 
 function setAlign(align) {
-  if (!hasSlides()) return;
-  saveCurrentEdits();
-  current().align = align;
+  previewAlign = align;
+  if (hasSlides()) {
+    saveCurrentEdits();
+    current().align = align;
+  }
   applyAlign();
   updateAlignButtons();
 }
 
 function setValign(valign) {
-  if (!hasSlides()) return;
-  saveCurrentEdits();
-  current().valign = valign;
+  previewValign = valign;
+  if (hasSlides()) {
+    saveCurrentEdits();
+    current().valign = valign;
+  }
   applyAlign();
   updateAlignButtons();
 }
@@ -210,7 +223,7 @@ function renderFilmstrip() {
 function render() {
   if (!hasSlides()) {
     els.counter.textContent = "0 / 0";
-    els.slideNum.textContent = "—";
+    els.slideNum.textContent = "0 / 0";
     els.prev.disabled = true;
     els.next.disabled = true;
     els.download.disabled = true;

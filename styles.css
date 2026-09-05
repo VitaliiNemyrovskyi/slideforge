@@ -153,6 +153,7 @@ button.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line
   gap: 10px;
   min-height: 0;
   width: 100%;
+  justify-self: stretch;
 }
 .slide-inner.align-left .text-block { text-align: left; align-items: flex-start; }
 .slide-inner.align-center .text-block { text-align: center; align-items: center; }
