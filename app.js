@@ -30,6 +30,10 @@ const dotsEl = document.getElementById("dots");
 const filmstrip = document.getElementById("filmstrip");
 const downloadBtn = document.getElementById("download");
 const downloadAllBtn = document.getElementById("downloadAll");
+const alignLeft = document.getElementById("alignLeft");
+const alignCenter = document.getElementById("alignCenter");
+const alignRight = document.getElementById("alignRight");
+const slideInner = document.querySelector(".slide-inner");
 
 let slides = [];
 let idx = 0;
@@ -53,12 +57,12 @@ function buildSlides(text, toneVal) {
   const topic = truncate(text.replace(/\s+/g, " "), 120) || "Твоя тема";
   const tipOpen = toneVal === "direct" ? "Коротко:" : toneVal === "expert" ? "З практики:" : "Мʼяко кажучи:";
   return [
-    { type: "hook", title: "Стоп. Це важливо.", body: topic },
-    { type: "myth", title: "Міф, який шкодить", body: "Порада «просто відпусти» часто ігнорує нервову систему. Тривога — не лінь і не слабкість." },
-    { type: "tip", title: tipOpen + " тіло спочатку", body: "Ноги на підлогу. Видих довше за вдих. Назви 5 речей, які бачиш. Потім думки." },
-    { type: "tip", title: "Один маленький крок", body: "Не треба «стати спокійним». Досить зменшити інтенсивність на 10% і дати собі опору." },
-    { type: "tip", title: "Мова до себе", body: "Замість «знову я» спробуй: «зараз мені важко — і це можна витримати з підтримкою»." },
-    { type: "cta", title: "Забери собі", body: "Збережи карусель. Якщо відгукнулось — напиши в Direct слово СПОКІЙ або запишися на сесію." }
+    { type: "hook", title: "Стоп. Це важливо.", body: topic, align: "left" },
+    { type: "myth", title: "Міф, який шкодить", body: "Порада «просто відпусти» часто ігнорує нервову систему. Тривога — не лінь і не слабкість.", align: "left" },
+    { type: "tip", title: tipOpen + " тіло спочатку", body: "Ноги на підлогу. Видих довше за вдих. Назви 5 речей, які бачиш. Потім думки.", align: "left" },
+    { type: "tip", title: "Один маленький крок", body: "Не треба «стати спокійним». Досить зменшити інтенсивність на 10% і дати собі опору.", align: "left" },
+    { type: "tip", title: "Мова до себе", body: "Замість «знову я» спробуй: «зараз мені важко — і це можна витримати з підтримкою».", align: "left" },
+    { type: "cta", title: "Забери собі", body: "Збережи карусель. Якщо відгукнулось — напиши в Direct слово СПОКІЙ або запишися на сесію.", align: "left" }
   ];
 }
 
@@ -95,6 +99,29 @@ function saveCurrentEdits() {
   if (!slides.length) return;
   slides[idx].title = slideTitle.innerText.trim();
   slides[idx].body = slideBody.innerText.trim();
+  if (!slides[idx].align) slides[idx].align = "left";
+}
+
+function setAlign(align) {
+  if (!slides.length) return;
+  slides[idx].align = align;
+  applyAlign();
+  updateAlignButtons();
+}
+
+function applyAlign() {
+  if (!slideInner) return;
+  slideInner.classList.remove("align-left", "align-center", "align-right");
+  const a = (slides[idx] && slides[idx].align) || "left";
+  slideInner.classList.add("align-" + a);
+}
+
+function updateAlignButtons() {
+  const a = (slides[idx] && slides[idx].align) || "left";
+  [alignLeft, alignCenter, alignRight].forEach(function (b) {
+    if (!b) return;
+    b.classList.toggle("active", b.getAttribute("data-align") === a);
+  });
 }
 
 function renderDots() {
@@ -201,6 +228,8 @@ function slideToPng(slide) {
   const sizeMap = { s: [56, 36, 64], m: [72, 44, 84], l: [88, 52, 96] };
   const fam = fontMap[fontSel.value] || fontMap.serif;
   const sz = sizeMap[sizeSel.value] || sizeMap.m;
+  const align = slide.align || "left";
+  const tx = align === "center" ? W / 2 : align === "right" ? W - 72 : 72;
   ctx.fillStyle = dark ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.55)";
   roundRect(ctx, 72, 72, 200, 52, 26); ctx.fill();
   roundRect(ctx, W - 220, 72, 148, 52, 26); ctx.fill();
@@ -210,9 +239,11 @@ function slideToPng(slide) {
   const num = (slides.indexOf(slide) + 1) + " / " + slides.length;
   ctx.fillText(num, W - 200, 108);
   ctx.font = "bold " + sz[0] + "px " + fam;
-  let y = wrapText(ctx, slide.title, 72, 230, W - 144, sz[2]);
+  ctx.textAlign = align === "center" ? "center" : align === "right" ? "right" : "left";
+  let y = wrapText(ctx, slide.title, tx, 230, W - 144, sz[2]);
   ctx.font = sz[1] + "px " + fam;
-  wrapText(ctx, slide.body, 72, y + 80, W - 144, Math.round(sz[1] * 1.3));
+  wrapText(ctx, slide.body, tx, y + 80, W - 144, Math.round(sz[1] * 1.3));
+  ctx.textAlign = "left";
   ctx.globalAlpha = 0.7;
   ctx.font = "28px " + fam;
   ctx.fillText("SlideForge", 72, H - 72);
@@ -225,6 +256,10 @@ fontSel.addEventListener("change", applyLook);
 sizeSel.addEventListener("change", applyLook);
 slideTitle.addEventListener("blur", function () { saveCurrentEdits(); renderFilmstrip(); });
 slideBody.addEventListener("blur", function () { saveCurrentEdits(); renderFilmstrip(); });
+
+alignLeft.addEventListener("click", function () { setAlign("left"); });
+alignCenter.addEventListener("click", function () { setAlign("center"); });
+alignRight.addEventListener("click", function () { setAlign("right"); });
 
 prevBtn.addEventListener("click", function () {
   if (idx > 0) { saveCurrentEdits(); idx -= 1; render(); }

@@ -46,3 +46,17 @@ button#generate{background:var(--accent)}
 .thumb{flex:0 0 72px;height:90px;border-radius:10px;border:2px solid transparent;background-size:cover;background-position:center;cursor:pointer;position:relative;overflow:hidden}
 .thumb.active{border-color:var(--accent)}
 .thumb .t-label{position:absolute;left:0;right:0;bottom:0;padding:4px;font-size:9px;background:rgba(0,0,0,.45);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.edit-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin:10px 0 4px}
+.edit-hint{font-size:.8rem;color:var(--muted)}
+.align-btns{display:flex;gap:6px}
+.align-btn{min-width:40px;background:#eee;color:#111;padding:8px 12px;border-radius:10px;font-weight:700}
+.align-btn.active{background:var(--accent);color:#fff}
+.slide-inner.align-left{text-align:left}
+.slide-inner.align-center{text-align:center}
+.slide-inner.align-right{text-align:right}
+.slide-inner.align-center .topbar{justify-content:center}
+.slide-inner.align-right .topbar{justify-content:flex-end}
+.slide-inner.align-center .badge{align-self:center}
+.slide-inner.align-right .badge{align-self:flex-end}
+.slide-inner.align-left .badge{align-self:flex-start}
