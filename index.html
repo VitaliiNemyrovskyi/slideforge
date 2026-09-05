@@ -13,11 +13,11 @@
   <main class="wrap">
     <header class="header">
       <h1>SlideForge</h1>
-      <p class="sub">Текст до слайдів і PNG. Мікро-інструмент для експертів.</p>
+      <p class="sub">Як у нормальних carousel-мейкерів: текст → слайди → правки → PNG.</p>
     </header>
     <section class="panel">
       <label for="input">Тема або чернетка</label>
-      <textarea id="input" rows="6" placeholder="Наприклад: чому просто відпусти — погана порада при тривозі"></textarea>
+      <textarea id="input" rows="5" placeholder="Наприклад: чому просто відпусти — погана порада при тривозі"></textarea>
       <div class="row">
         <div>
           <label for="tone">Тон</label>
@@ -63,18 +63,23 @@
       <div class="phone">
         <div id="slide" class="slide">
           <div class="slide-inner">
-            <span id="slideType" class="badge">hook</span>
-            <h2 id="slideTitle">Натисни Згенерувати</h2>
-            <p id="slideBody">Твій текст стане каруселлю для Instagram.</p>
+            <div class="topbar">
+              <span id="slideType" class="badge">hook</span>
+              <span id="slideNum" class="num">1 / 1</span>
+            </div>
+            <h2 id="slideTitle" contenteditable="true" spellcheck="false">Натисни Згенерувати</h2>
+            <p id="slideBody" contenteditable="true" spellcheck="false">Потім правиш текст прямо на слайді — як у Canva.</p>
             <div class="brand">SlideForge</div>
           </div>
         </div>
       </div>
+      <div class="dots" id="dots"></div>
       <div class="nav">
-        <button id="prev" type="button" disabled>-</button>
+        <button id="prev" type="button" disabled>←</button>
         <span id="counter">0 / 0</span>
-        <button id="next" type="button" disabled>-</button>
+        <button id="next" type="button" disabled>→</button>
       </div>
+      <div id="filmstrip" class="filmstrip"></div>
       <div class="row actions">
         <button id="download" type="button" disabled>Завантажити PNG</button>
         <button id="downloadAll" type="button" disabled>Усі PNG</button>
@@ -82,5 +87,6 @@
     </section>
   </main>
   <script src="app.js"></script>
+
 </body>
 </html>
