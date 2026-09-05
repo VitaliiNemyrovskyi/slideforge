@@ -170,6 +170,8 @@ function render() {
   slideNum.textContent = idx + 1 + " / " + slides.length;
   slideTitle.innerText = s.title;
   slideBody.innerText = s.body;
+  applyAlign();
+  updateAlignButtons();
   counter.textContent = idx + 1 + " / " + slides.length;
   prevBtn.disabled = idx <= 0;
   nextBtn.disabled = idx >= slides.length - 1;
