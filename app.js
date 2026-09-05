@@ -72,6 +72,7 @@ const els = {
   overlay: document.getElementById("overlay"),
   font: document.getElementById("font"),
   size: document.getElementById("size"),
+  showTitles: document.getElementById("showTitles"),
   bgGrid: document.getElementById("bgGrid"),
   generate: document.getElementById("generate"),
   quota: document.getElementById("quota"),
@@ -226,6 +227,18 @@ function applyLook() {
   els.slide.classList.toggle("overlay-dark", els.overlay.value === "dark");
   els.slide.classList.remove("font-serif", "font-sans", "font-display", "size-s", "size-m", "size-l");
   els.slide.classList.add("font-" + els.font.value, "size-" + els.size.value);
+  applyTitles();
+}
+
+function titlesOn() {
+  return !els.showTitles || els.showTitles.checked;
+}
+
+function applyTitles() {
+  const on = titlesOn();
+  els.slideTitle.hidden = !on;
+  els.slideTitle.style.display = on ? "" : "none";
+  els.slide.classList.toggle("no-titles", !on);
 }
 
 function applyAlign() {
@@ -491,22 +504,29 @@ function slideToPng(slide) {
   const num = (slides.indexOf(slide) + 1) + " / " + slides.length;
   ctx.fillText(num, W - pad - 130, pad + 34);
 
-  const titleLines = countLines(ctx, slide.title, maxW, "700 " + sz[0] + "px " + fam);
+  const showTitle = titlesOn() && String(slide.title || "").trim();
+  const titleLines = showTitle ? countLines(ctx, slide.title, maxW, "700 " + sz[0] + "px " + fam) : 0;
   const bodyLines = countLines(ctx, slide.body, maxW, sz[1] + "px " + fam);
-  const blockH = titleLines * titleLh + gap + bodyLines * bodyLh;
+  const titleGap = showTitle ? gap : 0;
+  const blockH = titleLines * titleLh + titleGap + bodyLines * bodyLh;
+  const lead = showTitle ? titleLh * 0.85 : bodyLh * 0.85;
 
   const topSafe = pad + 90;
   const bottomSafe = H - pad - 40;
-  let startY = topSafe + titleLh * 0.85;
-  if (valign === "middle") startY = topSafe + (bottomSafe - topSafe - blockH) / 2 + titleLh * 0.85;
-  if (valign === "bottom") startY = bottomSafe - blockH + titleLh * 0.85;
+  let startY = topSafe + lead;
+  if (valign === "middle") startY = topSafe + (bottomSafe - topSafe - blockH) / 2 + lead;
+  if (valign === "bottom") startY = bottomSafe - blockH + lead;
 
   const tx = align === "center" ? W / 2 : align === "right" ? W - pad : pad;
   ctx.textAlign = align;
-  ctx.font = "700 " + sz[0] + "px " + fam;
-  let y = wrapText(ctx, slide.title, tx, startY, maxW, titleLh);
+  let y = startY;
+  if (showTitle) {
+    ctx.font = "700 " + sz[0] + "px " + fam;
+    y = wrapText(ctx, slide.title, tx, startY, maxW, titleLh);
+    y = y + gap;
+  }
   ctx.font = sz[1] + "px " + fam;
-  wrapText(ctx, slide.body, tx, y + gap, maxW, bodyLh);
+  wrapText(ctx, slide.body, tx, y, maxW, bodyLh);
 
   ctx.textAlign = "left";
   ctx.globalAlpha = 0.7;
@@ -517,6 +537,15 @@ function slideToPng(slide) {
 }
 
 els.overlay.addEventListener("change", function () { applyLook(); renderFilmstrip(); });
+if (els.showTitles) {
+  const saved = localStorage.getItem("sf-show-titles");
+  if (saved === "0") els.showTitles.checked = false;
+  if (saved === "1") els.showTitles.checked = true;
+  els.showTitles.addEventListener("change", function () {
+    localStorage.setItem("sf-show-titles", els.showTitles.checked ? "1" : "0");
+    applyTitles();
+  });
+}
 els.font.addEventListener("change", applyLook);
 els.size.addEventListener("change", applyLook);
 els.slideTitle.addEventListener("blur", function () { saveCurrentEdits(); renderFilmstrip(); });

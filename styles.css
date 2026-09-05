@@ -295,3 +295,20 @@ button.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+.check-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.slide.no-titles #slideTitle { display: none !important; }
