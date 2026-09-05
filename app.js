@@ -59,9 +59,8 @@ function bumpUse() {
   localStorage.setItem(todayKey(), String(usedCount() + 1));
 }
 function refreshQuota() {
-  const left = Math.max(0, MAX - usedCount());
-  els.quota.textContent = "Сьогодні: " + left + "/" + MAX;
-  els.generate.disabled = left <= 0;
+  els.quota.textContent = "";
+  els.generate.disabled = false;
 }
 function truncate(s, n) {
   s = String(s || "").trim();
@@ -429,15 +428,8 @@ els.generate.addEventListener("click", function () {
     els.error.hidden = false;
     return;
   }
-  if (usedCount() >= MAX) {
-    els.error.textContent = "Ліміт на сьогодні вичерпано.";
-    els.error.hidden = false;
-    refreshQuota();
-    return;
-  }
   slides = buildSlides(text, els.tone.value);
   idx = 0;
-  bumpUse();
   refreshQuota();
   applyLook();
   render();
