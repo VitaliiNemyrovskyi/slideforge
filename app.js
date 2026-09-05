@@ -34,6 +34,8 @@ const els = {
   filmstrip: document.getElementById("filmstrip"),
   download: document.getElementById("download"),
   downloadAll: document.getElementById("downloadAll"),
+  postCraftRank: document.getElementById("postCraftRank"),
+  postStatus: document.getElementById("postStatus"),
   alignLeft: document.getElementById("alignLeft"),
   alignCenter: document.getElementById("alignCenter"),
   alignRight: document.getElementById("alignRight"),
@@ -251,6 +253,7 @@ function render() {
     els.next.disabled = true;
     els.download.disabled = true;
     els.downloadAll.disabled = true;
+    if (els.postCraftRank) els.postCraftRank.disabled = true;
     els.filmstrip.innerHTML = "";
     els.dots.innerHTML = "";
     applyAlign();
@@ -267,6 +270,7 @@ function render() {
   els.next.disabled = idx >= slides.length - 1;
   els.download.disabled = false;
   els.downloadAll.disabled = false;
+  if (els.postCraftRank) els.postCraftRank.disabled = false;
   applyAlign();
   updateAlignButtons();
   renderDots();
@@ -445,6 +449,8 @@ els.download.addEventListener("click", function () {
   a.click();
 });
 
+if (els.postCraftRank) els.postCraftRank.addEventListener("click", function () { postViaCraftRank(); });
+
 els.downloadAll.addEventListener("click", function () {
   saveCurrentEdits();
   slides.forEach(function (s, i) {
@@ -454,6 +460,72 @@ els.downloadAll.addEventListener("click", function () {
     setTimeout(function () { a.click(); }, i * 250);
   });
 });
+
+
+function apiBase() {
+  // Same-origin on craftrank.app; on GitHub Pages there is no cookie session.
+  if (location.hostname.endsWith("craftrank.app")) return "/api";
+  return null;
+}
+
+function dataUrlToBlob(dataUrl) {
+  const parts = dataUrl.split(",");
+  const mime = parts[0].match(/:(.*?);/)[1];
+  const bin = atob(parts[1]);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+async function postViaCraftRank() {
+  const status = els.postStatus;
+  const base = apiBase();
+  if (!base) {
+    status.textContent = "Постинг працює на https://craftrank.app/carousel/ (потрібен логін CraftRank). З github.io лише скачування PNG.";
+    return;
+  }
+  if (!hasSlides()) return;
+  saveCurrentEdits();
+  els.postCraftRank.disabled = true;
+  status.textContent = "Рендер PNG…";
+  try {
+    const files = slides.map(function (s, i) {
+      const blob = dataUrlToBlob(slideToPng(s));
+      return new File([blob], "slide-" + (i + 1) + ".png", { type: "image/png" });
+    });
+    status.textContent = "Завантаження в CraftRank…";
+    const form = new FormData();
+    files.forEach(function (f) { form.append("file", f, f.name); });
+    const up = await fetch(base + "/media", { method: "POST", body: form, credentials: "include" });
+    if (up.status === 401 || up.status === 403) {
+      status.textContent = "Спочатку увійди в CraftRank, потім натисни знову.";
+      window.open("https://craftrank.app/", "_blank");
+      return;
+    }
+    if (!up.ok) throw new Error("upload " + up.status);
+    const upJson = await up.json();
+    const media = (upJson.media || []).map(function (m) { return m.url; });
+    if (!media.length) throw new Error("no media urls");
+
+    const word = ((els.ctaWord && els.ctaWord.value) || "СІМʼЯ").trim();
+    const caption = (els.input.value.trim() || "Карусель") + "\n\nНапиши в Direct: " + word;
+    status.textContent = "Створюю Instagram draft…";
+    const draft = await fetch(base + "/schedule/drafts", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: caption, platforms: ["instagram"], media: media })
+    });
+    if (!draft.ok) throw new Error("draft " + draft.status + " " + (await draft.text()));
+    status.textContent = "Готово: draft у CraftRank. Відкрий календар/чернетки й опублікуй.";
+    window.open("https://craftrank.app/", "_blank");
+  } catch (e) {
+    status.textContent = "Помилка: " + (e && e.message ? e.message : e);
+  } finally {
+    els.postCraftRank.disabled = !hasSlides();
+  }
+}
+
 
 renderBgGrid();
 refreshQuota();
