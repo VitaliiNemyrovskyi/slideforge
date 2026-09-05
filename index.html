@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SlideForge</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="header">
+      <h1>SlideForge</h1>
+      <p class="sub">Текст до слайдів і PNG. Мікро-інструмент для експертів.</p>
+    </header>
+    <section class="panel">
+      <label for="input">Тема або чернетка</label>
+      <textarea id="input" rows="6" placeholder="Наприклад: чому просто відпусти — погана порада при тривозі"></textarea>
+      <div class="row">
+        <div>
+          <label for="tone">Тон</label>
+          <select id="tone">
+            <option value="warm">Теплий</option>
+            <option value="direct">Прямий</option>
+            <option value="expert">Експертний</option>
+          </select>
+        </div>
+        <div>
+          <label for="theme">Шаблон</label>
+          <select id="theme">
+            <option value="light">Світлий</option>
+            <option value="dark">Темний</option>
+            <option value="accent">Акцент</option>
+          </select>
+        </div>
+      </div>
+      <div class="row actions">
+        <button id="generate" type="button">Згенерувати</button>
+        <span id="quota" class="muted"></span>
+      </div>
+      <p id="error" class="error" hidden></p>
+    </section>
+    <section class="preview-wrap">
+      <div class="phone">
+        <div id="slide" class="slide theme-light">
+          <div class="slide-inner">
+            <span id="slideType" class="badge">hook</span>
+            <h2 id="slideTitle">Натисни Згенерувати</h2>
+            <p id="slideBody">Твій текст стане каруселлю для Instagram.</p>
+            <div class="brand">SlideForge</div>
+          </div>
+        </div>
+      </div>
+      <div class="nav">
+        <button id="prev" type="button" disabled>-</button>
+        <span id="counter">0 / 0</span>
+        <button id="next" type="button" disabled>-</button>
+      </div>
+      <div class="row actions">
+        <button id="download" type="button" disabled>Завантажити PNG</button>
+        <button id="downloadAll" type="button" disabled>Усі PNG</button>
+      </div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
