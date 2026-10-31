@@ -417,8 +417,10 @@ async function countPrices() {
   const shops = state.shops.slice();
   await pool(shops, 4, async s => {
     state.counts.set(s.key, null);
-    const d = await getJSON(`${OP}/prices?location_osm_id=${s.osmId}&location_osm_type=${s.osmType}&size=1`);
-    state.counts.set(s.key, d.total || 0);
+    try {
+      const d = await getJSON(`${OP}/prices?location_osm_id=${s.osmId}&location_osm_type=${s.osmType}&size=1`);
+      state.counts.set(s.key, d.total || 0);
+    } catch { state.counts.set(s.key, 0); } // a failed lookup must not leave the shop "pending" forever
     updateShopPill(s);
   });
   // Put shops with data first among equals in distance bands, keep order otherwise
@@ -559,11 +561,13 @@ async function searchList(e) {
   store.set("list", $("list").value);
   bk.hidden = true; bk.innerHTML = "";
   if (!items.length) { ul.innerHTML = ""; return; }
-  if (!state.shops.length) { ul.innerHTML = `<li class="empty">${esc(t.listNoShops)}</li>`; return; }
+  if (!state.me || (!state.shops.length && !inTurkey(state.me))) { ul.innerHTML = `<li class="empty">${esc(t.listNoShops)}</li>`; return; }
   ul.innerHTML = `<li class="empty">${esc(t.listSearching)}</li>`;
-  while ([...state.counts.values()].some(v => v == null) || state.counts.size < state.shops.length) { await new Promise(r => setTimeout(r, 300)); if (tok !== listToken) return; }
-  const withData = state.shops.filter(s => state.counts.get(s.key) > 0);
   const turkey = inTurkey(state.me);
+  // wait for the Open Prices counts, but never more than 15 s (Turkey does not need them at all)
+  const until = Date.now() + (turkey ? 0 : 15000);
+  while (Date.now() < until && ([...state.counts.values()].some(v => v == null) || state.counts.size < state.shops.length)) { await new Promise(r => setTimeout(r, 300)); if (tok !== listToken) return; }
+  const withData = state.shops.filter(s => state.counts.get(s.key) > 0);
   if (!withData.length && !turkey) { ul.innerHTML = `<li class="empty">${esc(t.listNoData)}</li>`; return; }
   await pool(withData, 3, loadPrices);
   if (tok !== listToken) return;
