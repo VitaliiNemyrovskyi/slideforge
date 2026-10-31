@@ -417,12 +417,14 @@ async function findShops() {
     setStatus(state.shops.length ? "" : T().noShops);
     renderShops(); renderPanel(); drawMap();
     countPrices();
+    addTurkishBranches();
   } catch {
     setStatus(T().shopsFail, true);
+    addTurkishBranches().then(() => { if (state.shops.length) setStatus(""); });
   } finally { $("locate").disabled = false; }
 }
 async function countPrices() {
-  const shops = state.shops.slice();
+  const shops = state.shops.filter(s => !s.mf);
   await pool(shops, 4, async s => {
     state.counts.set(s.key, null);
     try {
@@ -458,11 +460,14 @@ function renderShops() {
 function updateShopPill(s) {
   const b = document.querySelector(`.shop[data-key="${s.key}"] .pill`); if (!b) return;
   const n = state.counts.get(s.key);
+  // Turkish chain branches: prices come through the shopping list (marketfiyati)
+  if (s.mf) { b.className = "pill has"; b.textContent = T().tabList; return; }
   b.className = "pill" + (n > 0 ? " has" : "");
   b.textContent = n == null ? T().checking : n > 0 ? T().prices(n) : T().noData;
 }
 function selectShop(s) {
   state.selected = s;
+  if (s.mf && state.tab !== "list") { state.tab = "list"; renderPanel(); }
   if (state.tab === "list") { document.querySelectorAll(".shop").forEach(b => b.setAttribute("aria-current", b.dataset.key === s.key ? "true" : "false")); drawMap(); return; }
   state.tab = "shop";
   document.querySelectorAll(".shop").forEach(b => b.setAttribute("aria-current", b.dataset.key === s.key ? "true" : "false"));
@@ -528,19 +533,60 @@ function score(p, variants) {
 /* Turkey: the government price-comparison service marketfiyati.org.tr (TÜBİTAK) covers A101, BİM, ŞOK, Migros, CarrefourSA…
    with per-branch prices. Same request the community clients use: POST /api/v2/search {keywords, latitude, longitude, distance(km)}. */
 const inTurkey = me => me && me.lat > 35.7 && me.lat < 42.3 && me.lon > 25.5 && me.lon < 45;
+const MF_API = "https://api.marketfiyati.org.tr";
+// POST /api/v2/nearest {latitude, longitude, distance km} -> [{id, marketName, sellerName?, distance m, location:{lat, lon}}]
+const mfCache = new Map();
+function mfDepots(km) {
+  const k = `${state.me.lat.toFixed(4)},${state.me.lon.toFixed(4)},${km}`;
+  if (!mfCache.has(k)) {
+    const p = getJSON(MF_API + "/api/v2/nearest", {
+      method: "POST", headers: { "Content-Type": "application/json" }, timeout: 12000,
+      body: JSON.stringify({ latitude: state.me.lat, longitude: state.me.lon, distance: km }),
+    }).then(d => (Array.isArray(d) ? d : d?.content || []).filter(x => x && x.id));
+    p.catch(() => mfCache.delete(k));
+    mfCache.set(k, p);
+  }
+  return mfCache.get(k);
+}
+const mfName = id => String(id || "").split("-")[0].toUpperCase();
+// Turkish chain branches as shops in the list (OpenStreetMap misses many, e.g. Migros)
+async function addTurkishBranches() {
+  if (!inTurkey(state.me)) return;
+  const r = +$("radius").value;
+  let deps;
+  try { deps = await mfDepots(Math.max(1, Math.round(r / 1000))); } catch { return; }
+  const me = state.me, extra = [];
+  for (const x of deps) {
+    const pos = { lat: +x.location?.lat, lon: +x.location?.lon };
+    if (!isFinite(pos.lat) || !isFinite(pos.lon)) continue;
+    const d = dist(me, pos);
+    if (d > r * 1.05) continue;
+    extra.push({ key: "MF:" + x.id, osmType: "", osmId: "", mf: true, name: (x.marketName || mfName(x.id)).toUpperCase() + (x.sellerName ? " · " + x.sellerName : ""), brand: x.marketName || "", type: "supermarket", street: "", lat: pos.lat, lon: pos.lon, d });
+  }
+  if (state.me !== me || !extra.length) return;
+  const keys = new Set(state.shops.map(s => s.key));
+  // drop the OpenStreetMap copy of a branch we now have from marketfiyati (same chain within 120 m)
+  const same = (o, m) => norm(o.name || o.brand).replace(/ /g, "").startsWith(norm(m.brand).replace(/ /g, "")) && dist(o, m) < 120;
+  const osm = state.shops.filter(o => o.mf || !extra.some(m => same(o, m)));
+  state.shops = osm.concat(extra.filter(s => !keys.has(s.key))).sort((a, b) => a.d - b.d);
+  extra.forEach(s => state.counts.set(s.key, 0));
+  renderShops(); drawMap();
+}
 async function marketFiyati(item, radiusM) {
   // the store catalogue names singular items ("armut", not "armutlar")
   const kw = (await translateTerm(item, "tr") || item).split(" ").map(w => w.length > 5 ? w.replace(/(lar|ler)$/i, "") : w).join(" ");
-  const ask = km => getJSON("https://api.marketfiyati.org.tr/api/v2/search", {
-    method: "POST", headers: { "Content-Type": "application/json" }, timeout: 12000,
-    body: JSON.stringify({ keywords: kw, latitude: state.me.lat, longitude: state.me.lon, distance: km, size: 24, pages: 0 }),
-  });
   // diag ends up on screen so a failure can be told apart: blocked by the browser, HTTP error, or simply nothing found
   const diag = { kw, error: "", found: 0, depots: 0 };
   let d;
   try {
-    d = await ask(Math.max(1, Math.round(radiusM / 1000)));
-    if (!(d.content || []).length) d = await ask(5);
+    // search only answers for explicit branch IDs, which come from /nearest
+    let km = Math.max(1, Math.round(radiusM / 1000)), deps = await mfDepots(km);
+    if (!deps.length) { km = 5; deps = await mfDepots(km); }
+    if (!deps.length) { diag.error = "no branches nearby"; return { rows: [], diag }; }
+    d = await getJSON(MF_API + "/api/v2/search", {
+      method: "POST", headers: { "Content-Type": "application/json" }, timeout: 12000,
+      body: JSON.stringify({ keywords: kw, latitude: state.me.lat, longitude: state.me.lon, distance: km, depots: deps.slice(0, 500).map(x => x.id), size: 24, pages: 0 }),
+    });
   } catch (e) {
     diag.error = e instanceof TypeError ? "blocked" : (e.name === "TimeoutError" || e.name === "AbortError") ? "timeout" : "HTTP " + e.message;
     return { rows: [], diag };
