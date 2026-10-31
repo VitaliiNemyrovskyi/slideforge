@@ -247,7 +247,8 @@ function fmtDate(d) { try { return new Date(d).toLocaleDateString(state.lang, { 
 async function getJSON(url, opts) {
   const ck = url + (opts?.body ? "#" + opts.body : "");
   if (window.PRELOADED) { if (ck in window.PRELOADED) return structuredClone(window.PRELOADED[ck]); throw new Error("offline"); }
-  const r = await fetch(url, opts);
+  const signal = opts?.signal || (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined);
+  const r = await fetch(url, { ...opts, signal });
   if (!r.ok) throw new Error(r.status);
   return r.json();
 }
@@ -337,13 +338,17 @@ function drawMap() {
 }
 
 /* ---------- shops ---------- */
+// Ask every Overpass mirror at once and take the first good answer; a busy mirror can hang for minutes,
+// so each request is cut off after 15 s and the caller falls back to Nominatim.
 async function overpass(q) {
-  let lastErr;
-  for (const url of OVERPASS) {
-    try { return await getJSON(url, { method: "POST", body: "data=" + encodeURIComponent(q), headers: { "Content-Type": "application/x-www-form-urlencoded" } }); }
-    catch (e) { lastErr = e; }
-  }
-  throw lastErr;
+  const ctrls = OVERPASS.map(() => new AbortController());
+  const timer = setTimeout(() => ctrls.forEach(c => c.abort()), 15000);
+  try {
+    return await Promise.any(OVERPASS.map((url, i) => getJSON(url, {
+      method: "POST", body: "data=" + encodeURIComponent(q), signal: ctrls[i].signal,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    }).then(d => { if (!Array.isArray(d?.elements)) throw new Error("bad"); return d; })));
+  } finally { clearTimeout(timer); ctrls.forEach(c => c.abort()); }
 }
 async function overpassShops(lat, lon, r) {
   const q = `[out:json][timeout:25];nwr["shop"~"^(${SHOP_TYPES.join("|")})$"](around:${r},${lat},${lon});out center tags;`;
