@@ -519,16 +519,28 @@ const inTurkey = me => me && me.lat > 35.7 && me.lat < 42.3 && me.lon > 25.5 && 
 async function marketFiyati(item, radiusM) {
   // the store catalogue names singular items ("armut", not "armutlar")
   const kw = (await translateTerm(item, "tr") || item).split(" ").map(w => w.length > 5 ? w.replace(/(lar|ler)$/i, "") : w).join(" ");
-  const d = await getJSON("https://api.marketfiyati.org.tr/api/v2/search", {
+  const ask = km => getJSON("https://api.marketfiyati.org.tr/api/v2/search", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ keywords: kw, latitude: state.me.lat, longitude: state.me.lon, distance: Math.max(1, Math.round(radiusM / 1000)), size: 24, pages: 0 }),
+    body: JSON.stringify({ keywords: kw, latitude: state.me.lat, longitude: state.me.lon, distance: km, size: 24, pages: 0 }),
   });
+  // diag ends up on screen so a failure can be told apart: blocked by the browser, HTTP error, or simply nothing found
+  const diag = { kw, error: "", found: 0, depots: 0 };
+  let d;
+  try {
+    d = await ask(Math.max(1, Math.round(radiusM / 1000)));
+    if (!(d.content || []).length) d = await ask(5);
+  } catch (e) {
+    diag.error = e instanceof TypeError ? "blocked" : (e.name === "TimeoutError" || e.name === "AbortError") ? "timeout" : "HTTP " + e.message;
+    return { rows: [], diag };
+  }
+  diag.found = d.numberOfFound ?? (d.content || []).length;
   const rows = [];
   for (const c of d.content || []) {
     for (const x of c.productDepotInfoList || []) {
+      diag.depots++;
       const pos = { lat: +x.latitude, lon: +x.longitude };
       const dd = isFinite(pos.lat) && pos.lat ? dist(state.me, pos) : NaN;
-      if (dd > radiusM * 1.5) continue;
+      if (dd > 10000) continue;
       rows.push({
         price: +x.price, currency: "TRY", date: x.indexTime || null,
         product: { product_name: [c.brand, c.title].filter(Boolean).join(" "), image_url: c.imageUrl, quantity: c.refinedVolumeOrWeight || "" },
@@ -537,7 +549,7 @@ async function marketFiyati(item, radiusM) {
       });
     }
   }
-  return rows.sort((a, b) => a.price - b.price);
+  return { rows: rows.sort((a, b) => a.price - b.price), diag };
 }
 let listToken = 0;
 async function searchList(e) {
@@ -558,7 +570,7 @@ async function searchList(e) {
   const rows = withData.flatMap(s => state.prices.get(s.key) || []);
   const langs = new Set(["en"]);
   rows.forEach(p => { const l = COUNTRY_LANG[p.location?.osm_address_country_code]; if (l) langs.add(l); });
-  let trFailed = false;
+  const diags = [];
   const results = await Promise.all(items.map(async item => {
     const tr = await Promise.all([...langs].map(l => translateTerm(item, l)));
     const variants = [item, ...tr].filter(Boolean).map(stems);
@@ -567,13 +579,18 @@ async function searchList(e) {
     // the strongest kind of match only, cheapest first
     let top = matches.length ? matches.filter(m => m.s === matches[0].s).map(m => m.p) : [];
     if (turkey) {
-      try { top = (await marketFiyati(item, +$("radius").value)).concat(top).sort((a, b) => a.price - b.price); }
-      catch { trFailed = true; }
+      const mf = await marketFiyati(item, +$("radius").value);
+      diags.push(mf.diag);
+      top = mf.rows.concat(top).sort((a, b) => a.price - b.price);
     }
     return { item, top };
   }));
-  if (trFailed && results.every(r => !r.top.length)) { ul.innerHTML = `<li class="empty">${esc(t.listTrFail)}</li>`; return; }
   if (tok !== listToken || state.tab !== "list") return;
+  // technical line about the Turkish price service, so a screenshot shows what went wrong
+  const diagLine = diags.length ? "marketfiyati.org.tr: " + diags.map(g => `«${g.kw}» ` + (g.error === "blocked" ? "blocked by browser (CORS)" : g.error || `${g.found} products, ${g.depots} store prices`)).join("; ") : "";
+  if (diags.length && diags.every(g => g.error) && results.every(r => !r.top.length)) {
+    ul.innerHTML = `<li class="empty">${esc(t.listTrFail)}<br><span class="pmeta">${esc(diagLine)}</span></li>`; return;
+  }
 
   // basket: per shop, cheapest match for each item it carries
   const per = new Map();
@@ -601,6 +618,7 @@ async function searchList(e) {
     r.top.slice(0, 4).forEach((p, i) => { const li = priceRow(p, true); if (i === 0) li.classList.add("best"); ul.appendChild(li); toName.push(li); });
     if (r.top.length > 4) { const m = document.createElement("li"); m.className = "pmeta"; m.style.listStyle = "none"; m.textContent = t.listMore(r.top.length - 4); ul.appendChild(m); }
   }
+  if (diagLine) { const g = document.createElement("li"); g.className = "pmeta"; g.style.cssText = "list-style:none;padding-top:12px"; g.textContent = diagLine; ul.appendChild(g); }
   await pool(toName, 4, async li => {
     const n = await nameFor(li._p);
     if (tok !== listToken) return;
