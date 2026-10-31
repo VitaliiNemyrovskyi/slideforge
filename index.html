@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ціни поруч</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Unbounded:wght@500;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* Layout: a two-pane market board — shops list + map on the left, the selected shop's price tags on the right; stacks on phones */
+:root {
+  --bg: #f3f5f1;
+  --surface: #ffffff;
+  --fg: #1d2420;
+  --muted: #5f6b64;
+  --line: #d9dfd9;
+  --accent: #1f7a4d;
+  --accent-ink: #ffffff;
+  --tag: #fff6c9;
+  --tag-ink: #3a3200;
+  --warn: #9a5b00;
+  --font-display: "Unbounded", "Golos Text", system-ui, sans-serif;
+  --font-body: "Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121714; --surface: #1a211d; --fg: #e6ece8; --muted: #9aa7a0; --line: #2c3631;
+    --accent: #4cc38a; --accent-ink: #08130d; --tag: #3b3514; --tag-ink: #fff1a8; --warn: #f0b45a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121714; --surface: #1a211d; --fg: #e6ece8; --muted: #9aa7a0; --line: #2c3631;
+  --accent: #4cc38a; --accent-ink: #08130d; --tag: #3b3514; --tag-ink: #fff1a8; --warn: #f0b45a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg); font: 15px/1.5 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 1200px; margin: 0 auto; display: grid; gap: 20px; }
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: 1.7rem; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h1 span { color: var(--accent); }
+.sub { color: var(--muted); margin: 4px 0 0; max-width: 60ch; }
+h2 { font-family: var(--font-display); font-weight: 500; font-size: 1.05rem; margin: 0; text-wrap: balance; }
+label.lbl { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); display: block; margin-bottom: 4px; }
+select, input[type="text"], input[type="search"] {
+  font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; min-width: 0;
+}
+button {
+  font: inherit; font-weight: 600; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
+  border-radius: 8px; padding: 8px 14px; cursor: pointer;
+}
+button.ghost { background: transparent; color: var(--accent); }
+button:disabled { opacity: .55; cursor: progress; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.controls .grow { flex: 1 1 220px; display: flex; gap: 8px; }
+.controls .grow input { flex: 1; }
+.check { display: flex; align-items: center; gap: 6px; font-size: .9rem; color: var(--muted); }
+.status { color: var(--muted); font-size: .9rem; min-height: 1.4em; }
+.status.err { color: var(--warn); }
+.main { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .main { grid-template-columns: minmax(0, 1fr); } }
+#map { height: 280px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); z-index: 0; }
+.shops { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.shop {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; text-align: left; color: var(--fg); font-weight: 400; width: 100%;
+}
+.shop[aria-current="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.shop .nm { font-weight: 600; overflow-wrap: anywhere; }
+.shop .meta { color: var(--muted); font-size: .85rem; grid-column: 1; overflow-wrap: anywhere; }
+.shop .dist { font-family: var(--font-num); font-size: .85rem; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.pill { font-size: .75rem; border-radius: 99px; padding: 1px 8px; justify-self: end; align-self: center; white-space: nowrap; border: 1px solid var(--line); color: var(--muted); }
+.pill.has { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: baseline; }
+.panel-head a { color: var(--accent); font-size: .85rem; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tabs button { background: transparent; color: var(--fg); border-color: var(--line); font-weight: 500; padding: 6px 12px; }
+.tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.prices { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.price { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.price:first-child { border-top: 0; }
+.thumb { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; background: var(--bg); border: 1px solid var(--line); }
+.pname { font-weight: 500; overflow-wrap: anywhere; }
+.pname .orig { display: block; color: var(--muted); font-size: .8rem; font-weight: 400; }
+.pmeta { color: var(--muted); font-size: .8rem; }
+.tag {
+  font-family: var(--font-num); font-variant-numeric: tabular-nums; background: var(--tag); color: var(--tag-ink);
+  padding: 4px 10px; border-radius: 4px 12px 12px 4px; white-space: nowrap; text-align: right; font-size: .95rem;
+}
+.tag s { opacity: .6; font-size: .8rem; margin-right: 4px; }
+.empty { color: var(--muted); padding: 12px 0; }
+.empty a { color: var(--accent); }
+.mt { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 4px; vertical-align: 1px; }
+footer { color: var(--muted); font-size: .8rem; max-width: 80ch; }
+footer a { color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 id="t-title">Ціни <span>поруч</span></h1>
+      <p class="sub" id="t-sub"></p>
+    </div>
+    <div>
+      <label class="lbl" for="lang" id="t-lang"></label>
+      <select id="lang">
+        <option value="uk">Українська</option>
+        <option value="en">English</option>
+        <option value="pl">Polski</option>
+        <option value="de">Deutsch</option>
+        <option value="fr">Français</option>
+        <option value="es">Español</option>
+      </select>
+    </div>
+  </header>
+
+  <form class="controls" id="form">
+    <button type="button" id="locate"></button>
+    <div class="grow">
+      <div style="flex:1;display:grid;min-width:0">
+        <label class="lbl" for="addr" id="t-addr"></label>
+        <input type="text" id="addr" autocomplete="street-address">
+      </div>
+      <button type="submit" class="ghost" id="t-find" style="align-self:end"></button>
+    </div>
+    <div>
+      <label class="lbl" for="radius" id="t-radius"></label>
+      <select id="radius">
+        <option value="500">0,5 km</option>
+        <option value="1000" selected>1 km</option>
+        <option value="2000">2 km</option>
+        <option value="5000">5 km</option>
+      </select>
+    </div>
+    <label class="check"><input type="checkbox" id="mt" checked> <span id="t-mt"></span></label>
+  </form>
+
+  <div class="status" id="status" role="status" aria-live="polite"></div>
+
+  <div class="main">
+    <section style="display:grid;gap:12px;min-width:0">
+      <div id="map"></div>
+      <div class="panel-head"><h2 id="t-shops"></h2><span class="status" id="count"></span></div>
+      <ul class="shops" id="shops"></ul>
+    </section>
+
+    <section class="panel" id="panel">
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tab-shop" aria-selected="true"></button>
+        <button type="button" role="tab" id="tab-cmp" aria-selected="false"></button>
+      </div>
+      <div class="panel-head">
+        <h2 id="ptitle"></h2>
+        <span id="plinks"></span>
+      </div>
+      <input type="search" id="q" aria-label="search">
+      <ul class="prices" id="prices"></ul>
+    </section>
+  </div>
+
+  <footer id="t-foot"></footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+"use strict";
+
+/* ---------- UI strings ---------- */
+const I18N = {
+  uk: { geoDenied: "Доступ до місця заборонено. Натисніть значок замка ліворуч від адреси сторінки → Місцезнаходження → Дозволити, і оновіть сторінку. Або введіть адресу.", geoUnavail: "Браузер не може визначити місце. Увімкніть геолокацію в налаштуваннях системи (Windows: Параметри → Конфіденційність → Розташування; Mac: Системні параметри → Конфіденційність → Служби локації → увімкніть для браузера). Або введіть адресу.", geoTimeout: "Місце визначалося надто довго. Спробуйте ще раз або введіть адресу.", geoInsecure: "Цей спосіб відкриття не дає доступу до місця. Відкрийте файл у Chrome, Edge чи Firefox (не у вікні перегляду Claude) або введіть адресу.", title: "Ціни <span>поруч</span>", sub: "Знаходить найближчі продуктові магазини і показує ціни, які покупці внесли в Open Prices.", lang: "Мова", locate: "📍 Знайти мене", addr: "Або введіть адресу", find: "Шукати", radius: "Радіус", mt: "Перекладати назви автоматично", shops: "Магазини поруч", tabShop: "Ціни в магазині", tabCmp: "Порівняти всі", search: "Фільтр за назвою товару…", pickShop: "Виберіть магазин зі списку ліворуч.", locating: "Визначаю ваше місцезнаходження…", geoFail: "Не вдалося отримати геолокацію. Дозвольте доступ до місця в браузері або введіть адресу.", geocoding: "Шукаю адресу…", notFound: "Адресу не знайдено. Спробуйте написати місто і вулицю.", loadingShops: "Шукаю магазини поблизу…", shopsFail: "Сервер карт не відповів. Спробуйте ще раз за хвилину.", noShops: "У цьому радіусі немає продуктових магазинів. Збільште радіус.", found: n => `Знайдено магазинів: ${n}`, prices: n => `${n} цін`, noData: "без цін", checking: "…", loadingPrices: "Завантажую ціни…", noPrices: "Для цього магазину ще ніхто не вніс цін.", addPrice: "Додати ціну", osm: "На карті", cmpTitle: "Усі ціни поблизу", cmpEmpty: "Поблизу немає магазинів з цінами. Ціни є переважно у Франції, Німеччині, Італії, Іспанії та США.", cmpLoading: (a, b) => `Збираю ціни: ${a} з ${b} магазинів…`, discount: "знижка", per: { KILOGRAM: "/кг", UNIT: "/шт", LITER: "/л" }, you: "Ви тут", foot: 'Дані: магазини — <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, ціни — <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a> (Open Food Facts), назви товарів — Open Food Facts, машинний переклад — MyMemory. Ціни вносять покупці, тому вони можуть бути застарілими; дата біля кожної ціни показує, коли її зафіксовано.', mtBadge: "переклад", none: "Без назви", shopTypes: { supermarket: "супермаркет", convenience: "магазин біля дому", grocery: "продукти", greengrocer: "овочі й фрукти", butcher: "м'ясо", bakery: "пекарня", department_store: "універмаг", general: "магазин", deli: "делікатеси", dairy: "молочні продукти", beverages: "напої", alcohol: "алкоголь", seafood: "риба", organic: "органічні продукти", wholesale: "гуртовий", frozen_food: "заморожені продукти" } },
+  en: { geoDenied: "Location access is blocked. Click the lock icon left of the page address → Location → Allow, then reload. Or type an address.", geoUnavail: "The browser can't determine your location. Turn on location services in system settings for your browser. Or type an address.", geoTimeout: "Getting the location took too long. Try again or type an address.", geoInsecure: "This way of opening the page has no location access. Open the file in Chrome, Edge or Firefox, or type an address.", title: "Prices <span>nearby</span>", sub: "Finds the grocery shops closest to you and shows prices that shoppers have recorded in Open Prices.", lang: "Language", locate: "📍 Locate me", addr: "Or type an address", find: "Search", radius: "Radius", mt: "Translate names automatically", shops: "Shops nearby", tabShop: "Prices in shop", tabCmp: "Compare all", search: "Filter by product name…", pickShop: "Pick a shop from the list on the left.", locating: "Getting your location…", geoFail: "Couldn't get your location. Allow location access in the browser or type an address.", geocoding: "Looking up the address…", notFound: "Address not found. Try a city and a street.", loadingShops: "Looking for shops nearby…", shopsFail: "The map server didn't respond. Try again in a minute.", noShops: "No grocery shops in this radius. Increase the radius.", found: n => `Shops found: ${n}`, prices: n => `${n} prices`, noData: "no prices", checking: "…", loadingPrices: "Loading prices…", noPrices: "Nobody has added prices for this shop yet.", addPrice: "Add a price", osm: "On the map", cmpTitle: "All prices nearby", cmpEmpty: "No shops with prices nearby. Most prices come from France, Germany, Italy, Spain and the US.", cmpLoading: (a, b) => `Collecting prices: ${a} of ${b} shops…`, discount: "discount", per: { KILOGRAM: "/kg", UNIT: "/pc", LITER: "/l" }, you: "You are here", foot: 'Data: shops from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, prices from <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a> (Open Food Facts), product names from Open Food Facts, machine translation by MyMemory. Prices are added by shoppers and may be out of date; the date next to each price shows when it was recorded.', mtBadge: "translated", none: "Unnamed", shopTypes: { supermarket: "supermarket", convenience: "convenience store", grocery: "grocery", greengrocer: "greengrocer", butcher: "butcher", bakery: "bakery", department_store: "department store", general: "general store", deli: "deli", dairy: "dairy", beverages: "drinks", alcohol: "liquor store", seafood: "fishmonger", organic: "organic", wholesale: "wholesale", frozen_food: "frozen food" } },
+  pl: { geoDenied: "Dostęp do lokalizacji zablokowany. Kliknij kłódkę obok adresu → Lokalizacja → Zezwalaj i odśwież stronę. Albo wpisz adres.", geoUnavail: "Przeglądarka nie może ustalić lokalizacji. Włącz usługi lokalizacji w ustawieniach systemu. Albo wpisz adres.", geoTimeout: "Ustalanie lokalizacji trwało za długo. Spróbuj ponownie lub wpisz adres.", geoInsecure: "W tym widoku lokalizacja jest niedostępna. Otwórz plik w Chrome, Edge lub Firefox albo wpisz adres.", title: "Ceny <span>w pobliżu</span>", sub: "Znajduje najbliższe sklepy spożywcze i pokazuje ceny dodane przez kupujących w Open Prices.", lang: "Język", locate: "📍 Znajdź mnie", addr: "Albo wpisz adres", find: "Szukaj", radius: "Promień", mt: "Tłumacz nazwy automatycznie", shops: "Sklepy w pobliżu", tabShop: "Ceny w sklepie", tabCmp: "Porównaj wszystkie", search: "Filtruj po nazwie produktu…", pickShop: "Wybierz sklep z listy po lewej.", locating: "Ustalam lokalizację…", geoFail: "Nie udało się ustalić lokalizacji. Zezwól na dostęp w przeglądarce lub wpisz adres.", geocoding: "Szukam adresu…", notFound: "Nie znaleziono adresu. Wpisz miasto i ulicę.", loadingShops: "Szukam sklepów w pobliżu…", shopsFail: "Serwer map nie odpowiedział. Spróbuj za minutę.", noShops: "Brak sklepów spożywczych w tym promieniu. Zwiększ promień.", found: n => `Znaleziono sklepów: ${n}`, prices: n => `${n} cen`, noData: "brak cen", checking: "…", loadingPrices: "Wczytuję ceny…", noPrices: "Nikt jeszcze nie dodał cen dla tego sklepu.", addPrice: "Dodaj cenę", osm: "Na mapie", cmpTitle: "Wszystkie ceny w pobliżu", cmpEmpty: "W pobliżu nie ma sklepów z cenami. Najwięcej cen jest z Francji, Niemiec, Włoch, Hiszpanii i USA.", cmpLoading: (a, b) => `Zbieram ceny: ${a} z ${b} sklepów…`, discount: "promocja", per: { KILOGRAM: "/kg", UNIT: "/szt", LITER: "/l" }, you: "Jesteś tutaj", foot: 'Dane: sklepy z <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, ceny z <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a> (Open Food Facts), tłumaczenie maszynowe MyMemory. Ceny dodają kupujący, więc mogą być nieaktualne; data przy cenie pokazuje, kiedy ją zapisano.', mtBadge: "tłumaczenie", none: "Bez nazwy", shopTypes: { supermarket: "supermarket", convenience: "sklep osiedlowy", grocery: "spożywczy", greengrocer: "warzywniak", butcher: "mięsny", bakery: "piekarnia", department_store: "dom towarowy", general: "sklep", deli: "delikatesy", dairy: "nabiał", beverages: "napoje", alcohol: "alkohole", seafood: "ryby", organic: "ekologiczny", wholesale: "hurtownia", frozen_food: "mrożonki" } },
+  de: { geoDenied: "Standortzugriff blockiert. Klicken Sie auf das Schloss neben der Adresse → Standort → Zulassen und laden Sie neu. Oder geben Sie eine Adresse ein.", geoUnavail: "Der Browser kann den Standort nicht ermitteln. Aktivieren Sie die Ortungsdienste in den Systemeinstellungen. Oder geben Sie eine Adresse ein.", geoTimeout: "Die Standortbestimmung dauerte zu lange. Erneut versuchen oder Adresse eingeben.", geoInsecure: "In dieser Ansicht gibt es keinen Standortzugriff. Öffnen Sie die Datei in Chrome, Edge oder Firefox oder geben Sie eine Adresse ein.", title: "Preise <span>in der Nähe</span>", sub: "Findet die nächstgelegenen Lebensmittelgeschäfte und zeigt Preise, die Käufer in Open Prices eingetragen haben.", lang: "Sprache", locate: "📍 Mein Standort", addr: "Oder Adresse eingeben", find: "Suchen", radius: "Umkreis", mt: "Namen automatisch übersetzen", shops: "Geschäfte in der Nähe", tabShop: "Preise im Geschäft", tabCmp: "Alle vergleichen", search: "Nach Produktname filtern…", pickShop: "Wählen Sie links ein Geschäft aus.", locating: "Standort wird ermittelt…", geoFail: "Standort nicht verfügbar. Erlauben Sie den Zugriff im Browser oder geben Sie eine Adresse ein.", geocoding: "Adresse wird gesucht…", notFound: "Adresse nicht gefunden. Versuchen Sie Stadt und Straße.", loadingShops: "Suche Geschäfte in der Nähe…", shopsFail: "Der Kartenserver antwortet nicht. Versuchen Sie es in einer Minute erneut.", noShops: "Keine Lebensmittelgeschäfte in diesem Umkreis. Vergrößern Sie den Umkreis.", found: n => `Gefundene Geschäfte: ${n}`, prices: n => `${n} Preise`, noData: "keine Preise", checking: "…", loadingPrices: "Preise werden geladen…", noPrices: "Für dieses Geschäft hat noch niemand Preise eingetragen.", addPrice: "Preis hinzufügen", osm: "Auf der Karte", cmpTitle: "Alle Preise in der Nähe", cmpEmpty: "Keine Geschäfte mit Preisen in der Nähe. Die meisten Preise stammen aus Frankreich, Deutschland, Italien, Spanien und den USA.", cmpLoading: (a, b) => `Sammle Preise: ${a} von ${b} Geschäften…`, discount: "Rabatt", per: { KILOGRAM: "/kg", UNIT: "/Stk", LITER: "/l" }, you: "Sie sind hier", foot: 'Daten: Geschäfte von <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, Preise von <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a> (Open Food Facts), maschinelle Übersetzung von MyMemory. Preise werden von Käufern eingetragen und können veraltet sein; das Datum zeigt, wann ein Preis erfasst wurde.', mtBadge: "übersetzt", none: "Ohne Namen", shopTypes: { supermarket: "Supermarkt", convenience: "Laden", grocery: "Lebensmittel", greengrocer: "Obst & Gemüse", butcher: "Metzgerei", bakery: "Bäckerei", department_store: "Kaufhaus", general: "Geschäft", deli: "Feinkost", dairy: "Molkerei", beverages: "Getränke", alcohol: "Spirituosen", seafood: "Fisch", organic: "Bioladen", wholesale: "Großhandel", frozen_food: "Tiefkühlkost" } },
+  fr: { geoDenied: "Accès à la position bloqué. Cliquez sur le cadenas près de l'adresse → Position → Autoriser, puis rechargez. Ou saisissez une adresse.", geoUnavail: "Le navigateur ne peut pas déterminer la position. Activez les services de localisation dans les réglages du système. Ou saisissez une adresse.", geoTimeout: "La localisation a pris trop de temps. Réessayez ou saisissez une adresse.", geoInsecure: "Cette vue n'a pas accès à la position. Ouvrez le fichier dans Chrome, Edge ou Firefox, ou saisissez une adresse.", title: "Prix <span>à proximité</span>", sub: "Trouve les commerces alimentaires les plus proches et affiche les prix relevés par les acheteurs dans Open Prices.", lang: "Langue", locate: "📍 Me localiser", addr: "Ou saisissez une adresse", find: "Rechercher", radius: "Rayon", mt: "Traduire les noms automatiquement", shops: "Magasins à proximité", tabShop: "Prix du magasin", tabCmp: "Tout comparer", search: "Filtrer par nom de produit…", pickShop: "Choisissez un magasin dans la liste à gauche.", locating: "Localisation en cours…", geoFail: "Localisation impossible. Autorisez l'accès dans le navigateur ou saisissez une adresse.", geocoding: "Recherche de l'adresse…", notFound: "Adresse introuvable. Essayez une ville et une rue.", loadingShops: "Recherche des magasins à proximité…", shopsFail: "Le serveur de cartes ne répond pas. Réessayez dans une minute.", noShops: "Aucun commerce alimentaire dans ce rayon. Augmentez le rayon.", found: n => `Magasins trouvés : ${n}`, prices: n => `${n} prix`, noData: "aucun prix", checking: "…", loadingPrices: "Chargement des prix…", noPrices: "Personne n'a encore ajouté de prix pour ce magasin.", addPrice: "Ajouter un prix", osm: "Sur la carte", cmpTitle: "Tous les prix à proximité", cmpEmpty: "Aucun magasin avec des prix à proximité.", cmpLoading: (a, b) => `Collecte des prix : ${a} sur ${b} magasins…`, discount: "promo", per: { KILOGRAM: "/kg", UNIT: "/pièce", LITER: "/l" }, you: "Vous êtes ici", foot: 'Données : magasins <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, prix <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a> (Open Food Facts), traduction automatique MyMemory. Les prix sont ajoutés par les acheteurs et peuvent être anciens ; la date indique quand chaque prix a été relevé.', mtBadge: "traduit", none: "Sans nom", shopTypes: { supermarket: "supermarché", convenience: "supérette", grocery: "épicerie", greengrocer: "primeur", butcher: "boucherie", bakery: "boulangerie", department_store: "grand magasin", general: "magasin", deli: "traiteur", dairy: "crèmerie", beverages: "boissons", alcohol: "caviste", seafood: "poissonnerie", organic: "bio", wholesale: "grossiste", frozen_food: "surgelés" } },
+  es: { geoDenied: "El acceso a la ubicación está bloqueado. Pulsa el candado junto a la dirección → Ubicación → Permitir y recarga. O escribe una dirección.", geoUnavail: "El navegador no puede determinar la ubicación. Activa los servicios de ubicación en los ajustes del sistema. O escribe una dirección.", geoTimeout: "La ubicación tardó demasiado. Inténtalo de nuevo o escribe una dirección.", geoInsecure: "Esta vista no tiene acceso a la ubicación. Abre el archivo en Chrome, Edge o Firefox, o escribe una dirección.", title: "Precios <span>cerca</span>", sub: "Encuentra las tiendas de alimentación más cercanas y muestra los precios que los compradores registraron en Open Prices.", lang: "Idioma", locate: "📍 Ubicarme", addr: "O escribe una dirección", find: "Buscar", radius: "Radio", mt: "Traducir nombres automáticamente", shops: "Tiendas cercanas", tabShop: "Precios en la tienda", tabCmp: "Comparar todo", search: "Filtrar por producto…", pickShop: "Elige una tienda de la lista de la izquierda.", locating: "Obteniendo tu ubicación…", geoFail: "No se pudo obtener la ubicación. Permite el acceso en el navegador o escribe una dirección.", geocoding: "Buscando la dirección…", notFound: "Dirección no encontrada. Prueba con ciudad y calle.", loadingShops: "Buscando tiendas cercanas…", shopsFail: "El servidor de mapas no responde. Inténtalo en un minuto.", noShops: "No hay tiendas de alimentación en este radio. Amplía el radio.", found: n => `Tiendas encontradas: ${n}`, prices: n => `${n} precios`, noData: "sin precios", checking: "…", loadingPrices: "Cargando precios…", noPrices: "Nadie ha añadido precios para esta tienda todavía.", addPrice: "Añadir un precio", osm: "En el mapa", cmpTitle: "Todos los precios cercanos", cmpEmpty: "No hay tiendas con precios cerca.", cmpLoading: (a, b) => `Reuniendo precios: ${a} de ${b} tiendas…`, discount: "oferta", per: { KILOGRAM: "/kg", UNIT: "/ud", LITER: "/l" }, you: "Estás aquí", foot: 'Datos: tiendas de <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, precios de <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a> (Open Food Facts), traducción automática de MyMemory. Los precios los añaden compradores y pueden estar desactualizados; la fecha indica cuándo se registró cada precio.', mtBadge: "traducido", none: "Sin nombre", shopTypes: { supermarket: "supermercado", convenience: "tienda de barrio", grocery: "alimentación", greengrocer: "frutería", butcher: "carnicería", bakery: "panadería", department_store: "grandes almacenes", general: "tienda", deli: "charcutería", dairy: "lácteos", beverages: "bebidas", alcohol: "licorería", seafood: "pescadería", organic: "ecológica", wholesale: "mayorista", frozen_food: "congelados" } },
+};
+
+const SHOP_TYPES = Object.keys(I18N.en.shopTypes);
+const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter"];
+const OP = "https://prices.openfoodfacts.org/api/v1";
+const OFF = "https://world.openfoodfacts.org/api/v2";
+
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+const state = {
+  lang: store.get("lang", (navigator.language || "uk").slice(0, 2)),
+  me: null, shops: [], selected: null, tab: "shop",
+  prices: new Map(),      // shopKey -> array of price rows
+  counts: new Map(),      // shopKey -> number | null (loading)
+};
+if (!I18N[state.lang]) state.lang = "uk";
+const T = () => I18N[state.lang];
+const trCache = store.get("trCache", {});
+
+/* ---------- helpers ---------- */
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function dec(s) { if (!s || !s.includes("&")) return s || ""; const ta = document.createElement("textarea"); ta.innerHTML = s; return ta.value; }
+function setStatus(msg, err) { const el = $("status"); el.textContent = msg || ""; el.classList.toggle("err", !!err); }
+function dist(a, b) {
+  const R = 6371000, r = x => x * Math.PI / 180;
+  const dLat = r(b.lat - a.lat), dLon = r(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function fmtDist(m) { return m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toLocaleString(state.lang, { maximumFractionDigits: 1 })} km`; }
+function fmtPrice(v, cur) { try { return new Intl.NumberFormat(state.lang, { style: "currency", currency: cur }).format(v); } catch { return `${v} ${cur}`; } }
+function fmtDate(d) { try { return new Date(d).toLocaleDateString(state.lang, { year: "numeric", month: "short", day: "numeric" }); } catch { return d; } }
+async function getJSON(url, opts) {
+  const ck = url + (opts?.body ? "#" + opts.body : "");
+  if (window.PRELOADED) { if (ck in window.PRELOADED) return structuredClone(window.PRELOADED[ck]); throw new Error("offline"); }
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+async function pool(items, n, fn) {
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const it = items[i++]; try { await fn(it); } catch {} } }));
+}
+
+/* ---------- translation ---------- */
+const offNameCache = new Map();
+async function offName(code) {
+  const key = code + ":" + state.lang;
+  if (offNameCache.has(key)) return offNameCache.get(key);
+  const p = getJSON(`${OFF}/product/${encodeURIComponent(code)}?fields=product_name,product_name_${state.lang},lang`)
+    .then(d => d.product ? { name: d.product[`product_name_${state.lang}`] || "", base: d.product.product_name || "", src: d.product.lang || "autodetect" } : null)
+    .catch(() => null);
+  offNameCache.set(key, p);
+  return p;
+}
+const catCache = new Map();
+async function catName(tag) {
+  const key = tag + ":" + state.lang;
+  if (catCache.has(key)) return catCache.get(key);
+  const p = getJSON(`${OFF}/taxonomy?tagtype=categories&tags=${encodeURIComponent(tag)}&lc=${state.lang},en&fields=name`)
+    .then(d => { const n = d[tag]?.name || {}; return { name: n[state.lang] || "", base: n.en || tag.replace(/^\w\w:/, "").replace(/-/g, " ") }; })
+    .catch(() => ({ name: "", base: tag.replace(/^\w\w:/, "").replace(/-/g, " ") }));
+  catCache.set(key, p);
+  return p;
+}
+async function machineTranslate(text, src) {
+  if (!text || !$("mt").checked) return null;
+  const k = `${src}|${state.lang}|${text}`;
+  if (trCache[k]) return trCache[k];
+  try {
+    const pair = `${src && src.length === 2 ? src : "autodetect"}|${state.lang}`;
+    const d = await getJSON(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0, 400))}&langpair=${pair}`);
+    const ta = document.createElement("textarea"); ta.innerHTML = d?.responseData?.translatedText || "";
+    const out = ta.value;
+    if (d.responseStatus !== 200 || !out || d.quotaFinished) return null;
+    if (d?.responseData?.detectedLanguage === state.lang || out.toLowerCase() === text.toLowerCase()) return null;
+    trCache[k] = out; store.set("trCache", trCache);
+    return out;
+  } catch { return null; }
+}
+/* Resolve a price row's display name in the selected language. */
+async function nameFor(p) {
+  if (p.type === "CATEGORY" && p.category_tag) {
+    const c = await catName(p.category_tag);
+    if (c.name) return { text: c.name };
+    const mt = await machineTranslate(c.base, "en");
+    return mt ? { text: mt, orig: c.base, mt: true } : { text: c.base };
+  }
+  const raw = dec(p.product?.product_name || p.product_name || "");
+  if (p.product_code) {
+    const o = await offName(p.product_code);
+    if (o?.name) return { text: o.name, orig: o.name !== raw ? raw : "" };
+    const base = dec(o?.base) || raw;
+    if (!base) return { text: T().none };
+    if (o && o.src === state.lang) return { text: base };
+    const mt = await machineTranslate(base, o?.src);
+    return mt && mt.toLowerCase() !== base.toLowerCase() ? { text: mt, orig: base, mt: true } : { text: base };
+  }
+  const mt = await machineTranslate(raw, "autodetect");
+  return mt ? { text: mt, orig: raw, mt: true } : { text: raw || T().none };
+}
+
+/* ---------- map ---------- */
+let map, layer;
+function initMap() {
+  if (!window.L) { $("map").hidden = true; return; }
+  map = L.map("map", { zoomControl: true, attributionControl: true }).setView([50.45, 30.52], 12);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+  layer = L.layerGroup().addTo(map);
+}
+function drawMap() {
+  if (!map || !state.me) return;
+  layer.clearLayers();
+  L.circleMarker([state.me.lat, state.me.lon], { radius: 8, color: "#1d4ed8", fillColor: "#3b82f6", fillOpacity: 1, weight: 3 }).bindTooltip(T().you).addTo(layer);
+  const pts = [[state.me.lat, state.me.lon]];
+  state.shops.forEach(s => {
+    const has = state.counts.get(s.key) > 0, sel = state.selected === s;
+    const m = L.circleMarker([s.lat, s.lon], { radius: sel ? 9 : 6, color: has ? "#1f7a4d" : "#7b8780", fillColor: has ? "#4cc38a" : "#c9d1cc", fillOpacity: .95, weight: sel ? 3 : 1.5 })
+      .bindTooltip(s.name).on("click", () => selectShop(s));
+    m.addTo(layer); pts.push([s.lat, s.lon]);
+  });
+  map.fitBounds(pts, { padding: [24, 24], maxZoom: 16 });
+}
+
+/* ---------- shops ---------- */
+async function overpass(q) {
+  let lastErr;
+  for (const url of OVERPASS) {
+    try { return await getJSON(url, { method: "POST", body: "data=" + encodeURIComponent(q), headers: { "Content-Type": "application/x-www-form-urlencoded" } }); }
+    catch (e) { lastErr = e; }
+  }
+  throw lastErr;
+}
+async function overpassShops(lat, lon, r) {
+  const q = `[out:json][timeout:25];nwr["shop"~"^(${SHOP_TYPES.join("|")})$"](around:${r},${lat},${lon});out center tags;`;
+  const d = await overpass(q);
+  return d.elements.map(e => {
+    const c = e.type === "node" ? e : e.center; if (!c) return null;
+    const t = e.tags || {};
+    return {
+      key: `${e.type.toUpperCase()}:${e.id}`, osmType: e.type.toUpperCase(), osmId: e.id,
+      name: t.name || t.brand || "", brand: t.brand || "", type: t.shop,
+      street: [t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(", "),
+      lat: c.lat, lon: c.lon, d: dist(state.me, c),
+    };
+  }).filter(Boolean);
+}
+/* Fallback when every Overpass server is down or busy: Nominatim keyword search in a box around the point.
+   Covers supermarkets and convenience stores only; requests are spaced to respect Nominatim's 1 req/s policy. */
+async function nominatimShops(lat, lon, r) {
+  const dLat = r / 111320, dLon = r / (111320 * Math.cos(lat * Math.PI / 180));
+  const box = [lon - dLon, lat + dLat, lon + dLon, lat - dLat].map(v => v.toFixed(5)).join(",");
+  const out = [];
+  for (const [i, q] of ["supermarket", "convenience store"].entries()) {
+    if (i) await new Promise(res => setTimeout(res, 1100));
+    const d = await getJSON(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=40&bounded=1&addressdetails=1&viewbox=${box}&q=${encodeURIComponent(q)}`);
+    for (const x of d) {
+      if (x.category !== "shop") continue;
+      const a = x.address || {}, c = { lat: +x.lat, lon: +x.lon };
+      out.push({
+        key: `${x.osm_type.toUpperCase()}:${x.osm_id}`, osmType: x.osm_type.toUpperCase(), osmId: x.osm_id,
+        name: x.name || "", brand: "", type: x.type,
+        street: [a.road, a.house_number].filter(Boolean).join(", "),
+        ...c, d: dist(state.me, c),
+      });
+    }
+  }
+  return out;
+}
+async function findShops() {
+  const { lat, lon } = state.me, r = +$("radius").value;
+  setStatus(T().loadingShops);
+  $("locate").disabled = true;
+  try {
+    let list;
+    try { list = await overpassShops(lat, lon, r); }
+    catch { list = await nominatimShops(lat, lon, r); }
+    const seen = new Set();
+    state.shops = list.filter(s => s.d <= r * 1.05 && !seen.has(s.key) && seen.add(s.key)).sort((a, b) => a.d - b.d).slice(0, 60);
+    state.prices.clear(); state.counts.clear(); state.selected = null;
+    setStatus(state.shops.length ? "" : T().noShops);
+    renderShops(); renderPanel(); drawMap();
+    countPrices();
+  } catch {
+    setStatus(T().shopsFail, true);
+  } finally { $("locate").disabled = false; }
+}
+async function countPrices() {
+  const shops = state.shops.slice();
+  await pool(shops, 4, async s => {
+    state.counts.set(s.key, null);
+    const d = await getJSON(`${OP}/prices?location_osm_id=${s.osmId}&location_osm_type=${s.osmType}&size=1`);
+    state.counts.set(s.key, d.total || 0);
+    updateShopPill(s);
+  });
+  // Put shops with data first among equals in distance bands, keep order otherwise
+  drawMap();
+  if (state.tab === "cmp") renderPanel();
+}
+function shopLabel(s) {
+  const typ = T().shopTypes[s.type] || s.type;
+  return s.name || (typ.charAt(0).toUpperCase() + typ.slice(1));
+}
+function renderShops() {
+  $("count").textContent = state.shops.length ? T().found(state.shops.length) : "";
+  const ul = $("shops"); ul.innerHTML = "";
+  state.shops.forEach(s => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "shop"; b.dataset.key = s.key;
+    b.setAttribute("aria-current", state.selected === s ? "true" : "false");
+    const typ = T().shopTypes[s.type] || s.type;
+    b.innerHTML = `<span class="nm">${esc(shopLabel(s))}</span><span class="dist">${fmtDist(s.d)}</span>
+      <span class="meta">${esc([typ, s.street].filter(Boolean).join(" · "))}</span><span class="pill"></span>`;
+    b.addEventListener("click", () => selectShop(s));
+    li.appendChild(b); ul.appendChild(li);
+    updateShopPill(s);
+  });
+}
+function updateShopPill(s) {
+  const b = document.querySelector(`.shop[data-key="${s.key}"] .pill`); if (!b) return;
+  const n = state.counts.get(s.key);
+  b.className = "pill" + (n > 0 ? " has" : "");
+  b.textContent = n == null ? T().checking : n > 0 ? T().prices(n) : T().noData;
+}
+function selectShop(s) {
+  state.selected = s; state.tab = "shop";
+  document.querySelectorAll(".shop").forEach(b => b.setAttribute("aria-current", b.dataset.key === s.key ? "true" : "false"));
+  renderPanel(); drawMap();
+  if (window.matchMedia("(max-width: 860px)").matches) $("panel").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* ---------- prices ---------- */
+async function loadPrices(s) {
+  if (state.prices.has(s.key)) return state.prices.get(s.key);
+  const d = await getJSON(`${OP}/prices?location_osm_id=${s.osmId}&location_osm_type=${s.osmType}&size=100&order_by=-date`);
+  // keep only the latest price per product/category
+  const seen = new Set(), rows = [];
+  for (const p of d.items || []) {
+    const k = p.product_code || p.category_tag || p.id;
+    if (seen.has(k)) continue; seen.add(k); p._shop = s; rows.push(p);
+  }
+  state.prices.set(s.key, rows);
+  state.counts.set(s.key, d.total || rows.length); updateShopPill(s);
+  return rows;
+}
+
+let renderToken = 0;
+async function renderPanel() {
+  const tok = ++renderToken, t = T();
+  $("tab-shop").setAttribute("aria-selected", state.tab === "shop");
+  $("tab-cmp").setAttribute("aria-selected", state.tab === "cmp");
+  const ul = $("prices"); $("plinks").innerHTML = "";
+  let rows = [];
+  if (state.tab === "shop") {
+    const s = state.selected;
+    if (!s) { $("ptitle").textContent = t.tabShop; ul.innerHTML = `<li class="empty">${esc(t.pickShop)}</li>`; $("q").hidden = true; return; }
+    $("ptitle").textContent = shopLabel(s);
+    $("plinks").innerHTML = `<a href="https://www.openstreetmap.org/${s.osmType.toLowerCase()}/${s.osmId}" target="_blank" rel="noopener">${esc(t.osm)}</a> · <a href="https://prices.openfoodfacts.org/prices/add/single" target="_blank" rel="noopener">${esc(t.addPrice)}</a>`;
+    ul.innerHTML = `<li class="empty">${esc(t.loadingPrices)}</li>`;
+    try { rows = await loadPrices(s); } catch { rows = []; }
+    if (tok !== renderToken) return;
+    if (!rows.length) { $("q").hidden = true; ul.innerHTML = `<li class="empty">${esc(t.noPrices)} <a href="https://prices.openfoodfacts.org/prices/add/single" target="_blank" rel="noopener">${esc(t.addPrice)}</a></li>`; return; }
+  } else {
+    $("ptitle").textContent = t.cmpTitle;
+    const withData = state.shops.filter(s => state.counts.get(s.key) > 0);
+    if (!withData.length) { $("q").hidden = true; ul.innerHTML = `<li class="empty">${esc(state.shops.length ? t.cmpEmpty : t.pickShop)}</li>`; return; }
+    let done = 0;
+    ul.innerHTML = `<li class="empty">${esc(t.cmpLoading(0, withData.length))}</li>`;
+    await pool(withData, 3, async s => { await loadPrices(s); done++; if (tok === renderToken) ul.firstElementChild && (ul.firstElementChild.textContent = t.cmpLoading(done, withData.length)); });
+    if (tok !== renderToken) return;
+    rows = withData.flatMap(s => state.prices.get(s.key) || []);
+  }
+  $("q").hidden = false; $("q").placeholder = t.search;
+
+  ul.innerHTML = "";
+  const items = rows.map(p => {
+    const li = document.createElement("li"); li.className = "price";
+    const img = p.product?.image_url;
+    const per = p.price_per ? (t.per[p.price_per] || "") : "";
+    const qty = p.product?.quantity ? ` · ${esc(p.product.quantity)}` : "";
+    const shop = state.tab === "cmp" ? `${esc(shopLabel(p._shop))} · ${fmtDist(p._shop.d)} · ` : "";
+    li.innerHTML = `${img ? `<img class="thumb" loading="lazy" alt="" src="${esc(img)}">` : `<span class="thumb"></span>`}
+      <div style="min-width:0"><div class="pname">${esc(p.product?.product_name || p.product_name || p.category_tag || "…")}</div>
+      <div class="pmeta">${shop}${fmtDate(p.date)}${qty}${p.price_is_discounted ? ` · ${esc(t.discount)}` : ""}</div></div>
+      <div class="tag">${p.price_is_discounted && p.price_without_discount ? `<s>${fmtPrice(p.price_without_discount, p.currency)}</s>` : ""}${fmtPrice(p.price, p.currency)}${per}</div>`;
+    li._p = p; li._text = "";
+    ul.appendChild(li);
+    return li;
+  });
+  if (state.tab === "cmp") applyFilter();
+  // translate names progressively
+  await pool(items, 4, async li => {
+    const n = await nameFor(li._p);
+    if (tok !== renderToken) return;
+    li._text = (n.text + " " + (n.orig || "")).toLowerCase();
+    li.querySelector(".pname").innerHTML = esc(n.text) + (n.mt ? `<span class="mt">${esc(t.mtBadge)}</span>` : "") + (n.orig ? `<span class="orig">${esc(n.orig)}</span>` : "");
+    applyFilterOne(li);
+  });
+}
+function applyFilterOne(li) {
+  const q = $("q").value.trim().toLowerCase();
+  const text = li._text || (li.querySelector(".pname").textContent || "").toLowerCase();
+  li.hidden = q ? !text.includes(q) : false;
+}
+function applyFilter() {
+  const lis = [...$("prices").querySelectorAll(".price")];
+  lis.forEach(applyFilterOne);
+  if (state.tab === "cmp" && $("q").value.trim()) {
+    // cheapest first when comparing a specific product
+    lis.sort((a, b) => a._p.price - b._p.price).forEach(li => $("prices").appendChild(li));
+  }
+}
+
+/* ---------- location ---------- */
+function locate() {
+  if (!navigator.geolocation || !window.isSecureContext) { setStatus(T().geoInsecure, true); $("addr").focus(); return; }
+  setStatus(T().locating);
+  navigator.geolocation.getCurrentPosition(
+    pos => { state.me = { lat: pos.coords.latitude, lon: pos.coords.longitude }; store.set("me", state.me); findShops(); },
+    err => {
+      const t = T();
+      // code 1 with an instant answer usually means the frame/policy blocks it rather than the user
+      setStatus(err.code === 1 ? (/permissions policy|not allowed|secure/i.test(err.message) ? t.geoInsecure : t.geoDenied) : err.code === 3 ? t.geoTimeout : t.geoUnavail, true);
+      $("addr").focus();
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+  );
+}
+async function geocode(e) {
+  e.preventDefault();
+  const q = $("addr").value.trim(); if (!q) return;
+  setStatus(T().geocoding);
+  try {
+    const d = await getJSON(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`);
+    if (!d.length) { setStatus(T().notFound, true); return; }
+    state.me = { lat: +d[0].lat, lon: +d[0].lon }; store.set("me", state.me);
+    findShops();
+  } catch { setStatus(T().notFound, true); }
+}
+
+/* ---------- language ---------- */
+function applyLang() {
+  const t = T();
+  document.documentElement.lang = state.lang;
+  document.title = t.title.replace(/<[^>]+>/g, "");
+  $("t-title").innerHTML = t.title; $("t-sub").textContent = t.sub; $("t-lang").textContent = t.lang;
+  $("locate").textContent = t.locate; $("t-addr").textContent = t.addr; $("t-find").textContent = t.find;
+  $("t-radius").textContent = t.radius; $("t-mt").textContent = t.mt; $("t-shops").textContent = t.shops;
+  $("tab-shop").textContent = t.tabShop; $("tab-cmp").textContent = t.tabCmp; $("t-foot").innerHTML = t.foot;
+  $("lang").value = state.lang;
+  renderShops(); renderPanel(); drawMap();
+}
+
+$("lang").addEventListener("change", e => { state.lang = e.target.value; store.set("lang", state.lang); applyLang(); });
+$("locate").addEventListener("click", locate);
+$("form").addEventListener("submit", geocode);
+$("radius").addEventListener("change", () => state.me && findShops());
+$("mt").addEventListener("change", () => renderPanel());
+$("tab-shop").addEventListener("click", () => { state.tab = "shop"; renderPanel(); });
+$("tab-cmp").addEventListener("click", () => { state.tab = "cmp"; renderPanel(); });
+$("q").addEventListener("input", applyFilter);
+
+initMap();
+applyLang();
+const saved = store.get("me", null);
+if (saved) { state.me = saved; findShops(); }
+</script>
+</body>
+</html>
