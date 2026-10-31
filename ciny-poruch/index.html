@@ -255,10 +255,18 @@ function fmtDate(d) {
 async function getJSON(url, opts) {
   const ck = url + (opts?.body ? "#" + opts.body : "");
   if (window.PRELOADED) { if (ck in window.PRELOADED) return structuredClone(window.PRELOADED[ck]); throw new Error("offline"); }
-  const signal = opts?.signal || (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined);
-  const r = await fetch(url, { ...opts, signal });
-  if (!r.ok) throw new Error(r.status);
-  return r.json();
+  // hard time limit on every request; AbortSignal.timeout is missing in older Safari, so use a plain timer
+  const ctrl = new AbortController(), ms = opts?.timeout || 20000;
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  opts?.signal?.addEventListener("abort", () => ctrl.abort());
+  try {
+    const r = await fetch(url, { ...opts, signal: ctrl.signal });
+    if (!r.ok) throw new Error(r.status);
+    return await r.json();
+  } catch (e) {
+    if (ctrl.signal.aborted && !opts?.signal?.aborted) { const err = new Error("timeout"); err.name = "TimeoutError"; throw err; }
+    throw e;
+  } finally { clearTimeout(timer); }
 }
 async function pool(items, n, fn) {
   let i = 0;
@@ -489,7 +497,7 @@ async function translateTerm(text, to) {
   const k = `${state.lang}|${to}|${text}`;
   if (trCache[k]) return trCache[k];
   try {
-    const d = await getJSON(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${state.lang}|${to}`);
+    const d = await getJSON(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${state.lang}|${to}`, { timeout: 8000 });
     const ta = document.createElement("textarea"); ta.innerHTML = d?.responseData?.translatedText || "";
     if (d.responseStatus !== 200 || !ta.value || d.quotaFinished) return null;
     trCache[k] = ta.value; store.set("trCache", trCache);
@@ -524,7 +532,7 @@ async function marketFiyati(item, radiusM) {
   // the store catalogue names singular items ("armut", not "armutlar")
   const kw = (await translateTerm(item, "tr") || item).split(" ").map(w => w.length > 5 ? w.replace(/(lar|ler)$/i, "") : w).join(" ");
   const ask = km => getJSON("https://api.marketfiyati.org.tr/api/v2/search", {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json" }, timeout: 12000,
     body: JSON.stringify({ keywords: kw, latitude: state.me.lat, longitude: state.me.lon, distance: km, size: 24, pages: 0 }),
   });
   // diag ends up on screen so a failure can be told apart: blocked by the browser, HTTP error, or simply nothing found
@@ -577,6 +585,7 @@ async function searchList(e) {
   const langs = new Set(["en"]);
   rows.forEach(p => { const l = COUNTRY_LANG[p.location?.osm_address_country_code]; if (l) langs.add(l); });
   const diags = [];
+  if (turkey) ul.innerHTML = `<li class="empty">${esc(t.listSearching)} (marketfiyati.org.tr)</li>`;
   const results = await Promise.all(items.map(async item => {
     const tr = await Promise.all([...langs].map(l => translateTerm(item, l)));
     const variants = [item, ...tr].filter(Boolean).map(stems);
